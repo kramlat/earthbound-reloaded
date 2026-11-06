@@ -1,0 +1,33 @@
+# Authored text for the port (not taken from the ROM). Labels listed here replace the same
+# label in the extracted dialogue when it is packed (ebtools pack-all).
+#
+# The retail game's "turn off the power" endings of the phone calls ended with
+# disable_controller_input (CC 1F 50), which froze the game. On the PC port that command
+# ends the game and returns to the title screen, so the wording no longer asks the player to
+# switch the console off.
+_POWERSAVE_END:
+  - text: '@What a great adventure we had together.'
+  - halt_with_prompt
+  - line_break
+  - text: '@Take a good rest, and come back soon.'
+  - disable_controller_input
+  - end_block
+_GAUS_END:
+  - text: '@I don''t know where you are planning on sleeping, but have a good rest!'
+  - halt_with_prompt
+  - line_break
+  - text: '@Have a good night, and come back soon.'
+  - disable_controller_input
+  - halt_without_prompt
+  - end_block
+_PAPA_END:
+  - text: '@We''re a great team, aren''t we?'
+  - halt_with_prompt
+  - line_break
+  - text: '@Well, take a break, and come back to see me soon.'
+  - halt_with_prompt
+  - line_break
+  - text: '@All right?'
+  - disable_controller_input
+  - halt_without_prompt
+  - end_block
