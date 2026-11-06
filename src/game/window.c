@@ -98,7 +98,7 @@ static const uint16_t window_configs[][4] = {
     [0x36] = {  2,  3, 28, 16 },  /* Settings list: keys / gamepads / deadzone (port) */
     [0x37] = {  4, 10, 24,  6 },  /* Settings message: waiting for a key (port) */
     [0x3A] = {  1,  2, 30, 20 },  /* File browser: backup / restore (port) */
-    [0x39] = {  8, 12, 22, 10 },  /* Aspect ratio / screen mode questions (port) */
+    [0x39] = {  8, 11, 22, 12 },  /* Aspect ratio / screen mode questions (port) */
     [0x38] = {  1,  1, 11, 14 },  /* File select options: Settings / Exit Game (port) */
 };
 #define WINDOW_CONFIG_COUNT (sizeof(window_configs) / sizeof(window_configs[0]))

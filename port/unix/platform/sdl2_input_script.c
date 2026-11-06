@@ -57,6 +57,7 @@
  *                    the text CCs; 0 clears), or party_status if GROUP is 8.
  *                    In a battle, also sets the member's battler
  *   debug on|off     set ow.debug_flag (no debug menu, unlike aux F5)
+ *   aspect 0|1|2|3   change the aspect ratio while running (4:3, 16:10, 16:9, fit window): the live resize path
  *   money N          set money on hand
  *   rng [A B]        print / set the game RNG state (rng_state.a/.b, the
  *                    asm's RAND_A/RAND_B), for seeding port vs emu runs
@@ -1183,6 +1184,13 @@ static bool run_command(const char *cmd, const char *arg, const char *line, uint
         else if (arg[0])
             script_error("usage: debug [on|off]%s", "");
         printf("DEBUG %s\n", ow.debug_flag ? "on" : "off");
+    } else if (strcmp(cmd, "aspect") == 0) {
+        if (arg[0] >= '0' && arg[0] <= '3') {
+            platform_display_set_aspect(arg[0] - '0');
+            printf("ASPECT %d -> %dx%d\n", arg[0] - '0', EB_VIEWPORT_WIDTH, EB_VIEWPORT_HEIGHT);
+        } else {
+            script_error("usage: aspect 0|1|2|3%s", "");
+        }
     } else if (strcmp(cmd, "aux") == 0) {
         if (strcmp(arg, "F1") == 0) *aux |= AUX_DEBUG_DUMP;
         else if (strcmp(arg, "F5") == 0) *aux |= AUX_DEBUG_TOGGLE;

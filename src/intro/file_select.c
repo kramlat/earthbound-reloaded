@@ -2200,6 +2200,7 @@ static int fm_aspect_build(void) {
     add_menu_item("4:3", 1, 0, 1);
     add_menu_item("16:10", 2, 0, 2);
     add_menu_item("16:9", 3, 0, 3);
+    add_menu_item("Fit window", 4, 0, 4);
     print_menu_items();
     highlight_menu_item(w, (uint16_t)platform_display_aspect(), 6, true);
     return -1;

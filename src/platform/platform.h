@@ -153,6 +153,7 @@ bool platform_file_write(const char *path, const void *data, size_t size);   /* 
 #define DISPLAY_ASPECT_4_3    0
 #define DISPLAY_ASPECT_16_10  1
 #define DISPLAY_ASPECT_16_9   2
+#define DISPLAY_ASPECT_FIT    3   /* the picture follows the window's shape (between 4:3 and 9:5) */
 int platform_display_aspect(void);                    /* DISPLAY_ASPECT_*; widescreen rendering reads this */
 void platform_display_set_aspect(int aspect);
 bool platform_display_fullscreen(void);

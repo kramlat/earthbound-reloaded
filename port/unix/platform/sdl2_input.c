@@ -128,7 +128,7 @@ static void settings_load(void) {
             if (v >= INPUT_DEADZONE_MIN && v <= INPUT_DEADZONE_MAX) deadzone_pct = v;
         } else if (!strcmp(line, "aspect")) {
             int v = atoi(eq);
-            if (v >= DISPLAY_ASPECT_4_3 && v <= DISPLAY_ASPECT_16_9) display_aspect = v;
+            if (v >= DISPLAY_ASPECT_4_3 && v <= DISPLAY_ASPECT_FIT) display_aspect = v;
         } else if (!strcmp(line, "fullscreen")) {
             display_fullscreen = atoi(eq) != 0;
         } else if (!strcmp(line, "gamepad")) {
@@ -259,6 +259,10 @@ void platform_input_poll(void) {
                         text_repeat_next = SDL_GetTicks() + TEXT_REPEAT_DELAY_MS;
                     }
             }
+            break;
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                platform_display_apply_aspect();       /* "fit window" follows the window as it is resized */
             break;
         case SDL_CONTROLLERDEVICEADDED:
         case SDL_CONTROLLERDEVICEREMOVED:
@@ -423,7 +427,7 @@ void platform_input_reset_defaults(void) {
 int platform_display_aspect(void) { settings_ensure_loaded(); return display_aspect; }
 void platform_display_set_aspect(int aspect) {
     settings_ensure_loaded();
-    if (aspect < DISPLAY_ASPECT_4_3 || aspect > DISPLAY_ASPECT_16_9) return;
+    if (aspect < DISPLAY_ASPECT_4_3 || aspect > DISPLAY_ASPECT_FIT) return;
     display_aspect = aspect;
     settings_save();
     platform_display_apply_aspect();

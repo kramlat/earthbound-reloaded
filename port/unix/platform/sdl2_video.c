@@ -291,8 +291,16 @@ int platform_display_aspect(void);         /* sdl2_input.c: saved choice */
  * bottom), as wide as the ratio needs. 16:9 is 424 rather than 427 so the width is a whole number of tiles. */
 static void aspect_to_size(int aspect, int *w, int *h) {
     static const int widths[3] = { 320, 384, 424 };
-    *w = widths[aspect < 0 || aspect > 2 ? 0 : aspect];
     *h = 240;
+    if (aspect == 3) {                          /* fit window: as wide as the window's shape, in whole tiles */
+        int ww = 0, wh = 0;
+        if (window) SDL_GetWindowSize(window, &ww, &wh);
+        int fit = (ww > 0 && wh > 0) ? (int)((long)240 * ww / wh) : 424;
+        fit = (fit + 4) / 8 * 8;
+        *w = fit < 320 ? 320 : (fit > EB_VIEWPORT_MAX_WIDTH ? EB_VIEWPORT_MAX_WIDTH : fit);
+        return;
+    }
+    *w = widths[aspect < 0 || aspect > 2 ? 0 : aspect];
 }
 
 void platform_display_apply_aspect(void) {
@@ -305,7 +313,8 @@ void platform_display_apply_aspect(void) {
     SDL_RenderSetLogicalSize(renderer, w, h);
     if (texture) SDL_DestroyTexture(texture);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR565, SDL_TEXTUREACCESS_STREAMING, w, h);
-    if (!(SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)))
+    if (platform_display_aspect() != DISPLAY_ASPECT_FIT &&      /* "fit window" follows the window, not the reverse */
+        !(SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)))
         SDL_SetWindowSize(window, w * EB_WINDOW_SCALE, h * EB_WINDOW_SCALE);
 }
 
