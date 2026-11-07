@@ -1,4 +1,5 @@
 #include "platform/platform.h"
+#include "sdl2_touch.h"
 #include "include/pad.h"
 #include <SDL.h>
 #include <signal.h>
@@ -225,6 +226,7 @@ bool platform_input_init(void) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
+    touch_init();
     settings_load();
     open_wanted_gamepad();
     key_held = ctl_held = 0;
@@ -262,6 +264,8 @@ void platform_input_poll(void) {
     pad_prev = pad_state;
 
     while (SDL_PollEvent(&event)) {
+        if (touch_handle_event(&event))
+            continue;
         switch (event.type) {
         case SDL_QUIT:
             quit_requested = 1;
@@ -279,12 +283,14 @@ void platform_input_poll(void) {
             }
             break;
         case SDL_MOUSEMOTION:
+            touch_not_in_use();
             mouse.active = true;
             mouse.moved = true;
             mouse.x = event.motion.x;      /* picture pixels: the renderer maps window to logical size */
             mouse.y = event.motion.y;
             break;
         case SDL_MOUSEBUTTONDOWN:
+            touch_not_in_use();
             mouse.active = true;
             mouse.x = event.button.x;
             mouse.y = event.button.y;
@@ -302,6 +308,7 @@ void platform_input_poll(void) {
         case SDL_KEYDOWN:
         case SDL_KEYUP: {
             SDL_Scancode sc = event.key.keysym.scancode;
+            if (event.type == SDL_KEYDOWN) touch_not_in_use();
             if (rebind_slot >= 0) {
                 /* Capture mode: the next key press becomes the binding (Escape cancels). */
                 if (event.type == SDL_KEYDOWN && !event.key.repeat) {
@@ -380,11 +387,12 @@ void platform_input_poll(void) {
     }
 
     ctl_held = gamepad_sample();
-    pad_state = key_held | ctl_held;
+    if (ctl_held) touch_not_in_use();
+    pad_state = key_held | ctl_held | touch_pad();
 
     if (input_script_active()) {
         uint16_t aux = 0;
-        pad_state = input_script_next(&aux);
+        pad_state = input_script_next(&aux) | touch_pad();
         aux_state = aux;
     }
 }

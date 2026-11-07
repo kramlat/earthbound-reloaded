@@ -148,6 +148,7 @@ Instant (no frame passes):
 |---|---|
 | `shot [--crop W H] [--zoom N] [LABEL\|PATH.png]` | write the current frame as PNG (`shots/NNNN-LABEL.png`); `--crop` keeps a WxH box centred on the leader (clamped to the screen), `--zoom` scales it up N times |
 | `state [LABEL]` / `text` | print STATE/PARTY/FOLLOW/NEAR/ENEMIES lines / WIN+MENU lines |
+| `touch X Y` / `touchmove X Y` / `touchup` | one finger (id 99) at picture pixel X,Y: on the on-screen d-pad or a button it holds it, elsewhere a tap is a click; the touch overlay then shows in shots (`EB_TOUCH=0` turns touch off, `EB_TOUCH=1` keeps the overlay always on) |
 | `type TEXT` / `enter` | queue typed characters for a naming screen (up to 32 at once) / queue Enter, which ends the typing |
 | `mouse X Y` / `click X Y` / `rclick X Y` | put the pointer at picture pixel X,Y (the pixels of a `shot`); `click`/`rclick` also press the left/right button. A menu follows the pointer, a left click confirms the item under it or talks to / checks what is next to the leader in that direction, a right click is B |
 | `flag N [0\|1]` | read / set an event flag |

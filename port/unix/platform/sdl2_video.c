@@ -1,4 +1,5 @@
 #include "platform/platform.h"
+#include "sdl2_touch.h"
 #include "game/smooth_camera.h"
 #include "snes/ppu.h"
 #include <SDL.h>
@@ -432,7 +433,23 @@ pixel_t *platform_video_get_framebuffer(void) {
     return locked_pixels;
 }
 
+bool platform_video_finger_to_picture(float nx, float ny, int *px, int *py) {
+    if (!window || !renderer) {                 /* headless: the window is the picture */
+        *px = (int)(nx * EB_VIEWPORT_WIDTH);
+        *py = (int)(ny * EB_VIEWPORT_HEIGHT);
+        return true;
+    }
+    int ww, wh;
+    SDL_GetWindowSize(window, &ww, &wh);
+    float lx, ly;
+    SDL_RenderWindowToLogical(renderer, (int)(nx * ww), (int)(ny * wh), &lx, &ly);
+    *px = (int)lx;
+    *py = (int)ly;
+    return true;
+}
+
 void platform_video_end_frame(void) {
+    touch_draw(locked_pixels, locked_pitch);    /* the on-screen controls, only while touch is in use */
     if (platform_headless) {
         if (capture_out) {
             uint64_t t0 = SDL_GetPerformanceCounter();

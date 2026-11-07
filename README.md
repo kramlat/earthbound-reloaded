@@ -107,6 +107,27 @@ EarthBound was designed for comfortable one-handed play — many buttons are int
 | Right Shift | Select |
 | Tab | Fast-forward (4x speed) |
 
+### Mouse and Touch (Desktop)
+
+| Input | Action |
+|-------|--------|
+| Move the pointer over a menu item | Select it |
+| Left click on a menu item | Confirm it |
+| Right click | Cancel (B); on the overworld, show the HP/PP windows |
+| Left click on a person or object next to the party leader | Turn toward it and talk / check, as L does |
+| Left click during text | Advance it |
+
+On a touch screen (Steam Deck, touch laptops, and a base for the later Android build) the first touch shows an on-screen d-pad and buttons (A, B, X, L, R, Start) over the picture. A tap anywhere else is a click. A keyboard, mouse or gamepad hides the overlay again. Set `EB_TOUCH=0` to turn touch off or `EB_TOUCH=1` to keep the overlay always visible.
+
+Windows follow the aspect ratio (4:3, 16:10, 16:9 or fit-to-window): corner menus stay in the screen corners, the HP/PP boxes sit on the bottom edge, and the town map gets a matching checkerboard backdrop.
+
+---
+
+## New Game+ and Crazy Mode
+
+- **New Game+**: finishing the credits marks the save you were playing as cleared (shown as `+` after its name in the file select) and stores a snapshot of the four heroes behind it. While a cleared save exists, the file select lists **New Game+**: pick the cleared save, then a free slot. Levels, EXP, stats and every item except key items carry over, and each cycle makes monsters 50% tougher (HP, offense, defense) and worth more.
+- **Crazy Mode**: an expert difficulty, unlocked once a New Game+ has been finished. It starts from a blank slate, but monsters spawn on every attempt and are drawn from every monster in the game, so a Fourside painting or a Moonside gas pump can ambush you in Onett. It reuses the effect of the original's anti-piracy flag, with none of its crashes or save erasure. A New Game+ started from a cleared Crazy Mode save is both at once.
+
 ---
 
 ## Debug Hotkeys

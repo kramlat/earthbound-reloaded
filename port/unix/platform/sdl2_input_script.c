@@ -84,6 +84,7 @@
  * "TEXT w<id>| ..." lines when each line completes.
  */
 #include "platform/platform.h"
+#include "sdl2_touch.h"
 #include "include/pad.h"
 #include "include/constants.h"
 #include "core/math.h"
@@ -1137,6 +1138,13 @@ static bool run_command(const char *cmd, const char *arg, const char *line, uint
          * pixels); click and rclick press the left and right button as well. */
         if (nv >= 2)
             platform_mouse_script(v1, v2, cmd[0] == 'c', cmd[0] == 'r');
+    } else if (strcmp(cmd, "touch") == 0 || strcmp(cmd, "touchmove") == 0 || strcmp(cmd, "touchup") == 0) {
+        /* touch X Y / touchmove X Y / touchup: one finger (id 99) at picture pixel X,Y; with the
+         * overlay's d-pad and buttons under it, the finger holds them. */
+        if (cmd[5] == 'u')
+            touch_finger(99, 0, 0, 2);
+        else if (nv >= 2)
+            touch_finger(99, v1, v2, cmd[5] == 'm' ? 1 : 0);
     } else if (strcmp(cmd, "type") == 0 || strcmp(cmd, "enter") == 0) {
         /* type TEXT: queue the characters as typed text (the naming screens read them);
          * enter: queue Enter, which ends the typing. */
