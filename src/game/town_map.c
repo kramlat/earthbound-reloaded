@@ -165,8 +165,32 @@ static void load_town_map_finish(uint16_t map_index) {
         decomp(label_data, label_size, &ppu.vram[0x6000 * 2], TOWN_MAP_LABEL_GFX_SIZE);
     }
 
+    /* Widescreen backdrop: BG2 repeats the map's own border checkerboard behind BG1
+     * (FILL wraps its 32x32 tilemap across the whole viewport, so the gutters keep
+     * the pattern in step with the map's border). Entries are copied from the
+     * map's top row, so the tiles and palette group always match this map. */
+    {
+        const uint8_t *tm = BUF_REGION(BUF_TOWN_MAP_TILEMAP, 0, BUF_TOWN_MAP_TILEMAP_SIZE);
+        uint16_t even = (uint16_t)(tm[0] | (tm[1] << 8));    /* (x+y) even */
+        uint16_t odd = (uint16_t)(tm[62] | (tm[63] << 8));   /* column 31: (x+y) odd */
+        uint16_t *bd = (uint16_t *)&ppu.vram[0x3400 * 2];
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+                bd[y * 32 + x] = ((x + y) & 1) ? odd : even;
+        ppu.bg_sc[1] = 0x3400 >> 8;
+        ppu.bg_nba[0] = (ppu.bg_nba[0] & 0x0F);   /* BG2 tiles at $0000, shared with BG1 */
+        ppu.bg_hofs[1] = 0;
+        ppu.bg_vofs[1] = 0;
+        ppu.bg_viewport_fill[1] = BG_VIEWPORT_FILL;
+    }
+    /* Centre the 256x224 map and its icons (the overworld default draws band layers
+     * top-aligned and sprites at the screen's left edge); the icons are placed in
+     * map pixels, so they move with the map. reload_map() resets both on exit. */
+    ppu.sprite_x_offset = EB_VIEWPORT_PAD_LEFT;
+    ppu.sprite_y_offset = EB_VIEWPORT_PAD_TOP;
+
     ert.palette_upload_mode = 24;
-    ppu.tm = 0x11;  /* BG1 + OBJ */
+    ppu.tm = 0x13;  /* BG1 + BG2 + OBJ */
     ppu.bg_hofs[0] = 0;  /* BG1_X_POS */
     ppu.bg_vofs[0] = 0;  /* BG1_Y_POS */
     update_screen();
