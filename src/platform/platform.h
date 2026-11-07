@@ -101,6 +101,26 @@ bool platform_input_quit_requested(void);             /* user wants to exit (e.g
 void platform_request_quit(void);                     /* programmatic quit (e.g. from game menu) */
 
 /*
+ * Mouse (desktop only; EB_HAS_INPUT_SETTINGS): the pointer in picture pixels (0,0 = top-left of
+ * the EB_VIEWPORT_WIDTH x EB_VIEWPORT_HEIGHT picture, gutters included) and this frame's edges.
+ * `active` is false until the pointer has been over the window; ports without a mouse report a
+ * mouse that never moves or clicks.
+ */
+typedef struct {
+    int x, y;
+    bool active;
+    bool moved;            /* the pointer moved since the last poll */
+    bool left_pressed;     /* a button went down since the last poll */
+    bool right_pressed;
+} PlatformMouse;
+#ifdef EB_HAS_INPUT_SETTINGS
+const PlatformMouse *platform_mouse(void);
+void platform_mouse_script(int x, int y, bool left, bool right);   /* input scripts: put the pointer at x,y and click */
+#else
+static inline const PlatformMouse *platform_mouse(void) { static const PlatformMouse none; return &none; }
+#endif
+
+/*
  * Input settings (desktop only; defined when EB_HAS_INPUT_SETTINGS is set)
  *
  * Remappable keyboard bindings, gamepad choice and stick deadzone, saved by the

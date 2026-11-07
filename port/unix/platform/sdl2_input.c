@@ -236,8 +236,21 @@ void platform_input_shutdown(void) {
     if (pad_dev) { SDL_GameControllerClose(pad_dev); pad_dev = NULL; }
 }
 
+static PlatformMouse mouse;
+const PlatformMouse *platform_mouse(void) { return &mouse; }
+void platform_mouse_script(int x, int y, bool left, bool right) {
+    mouse.active = true;
+    if (x != mouse.x || y != mouse.y) mouse.moved = true;
+    mouse.x = x;
+    mouse.y = y;
+    mouse.left_pressed |= left;
+    mouse.right_pressed |= right;
+}
+
 void platform_input_poll(void) {
     SDL_Event event;
+
+    mouse.moved = mouse.left_pressed = mouse.right_pressed = false;
 
     record_frame(); /* --record-video/--record-audio: this frame is rendered */
 
@@ -259,6 +272,19 @@ void platform_input_poll(void) {
                         text_repeat_next = SDL_GetTicks() + TEXT_REPEAT_DELAY_MS;
                     }
             }
+            break;
+        case SDL_MOUSEMOTION:
+            mouse.active = true;
+            mouse.moved = true;
+            mouse.x = event.motion.x;      /* picture pixels: the renderer maps window to logical size */
+            mouse.y = event.motion.y;
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            mouse.active = true;
+            mouse.x = event.button.x;
+            mouse.y = event.button.y;
+            if (event.button.button == SDL_BUTTON_LEFT) mouse.left_pressed = true;
+            else if (event.button.button == SDL_BUTTON_RIGHT) mouse.right_pressed = true;
             break;
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)

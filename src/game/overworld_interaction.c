@@ -410,6 +410,44 @@ int16_t find_nearby_checkable_tpt_entry(void) {
     return (int16_t)ow.interacting_npc_id;
 }
 
+/* A left click on the world acts like pressing L facing the click: the party leader turns toward
+ * the clicked point and the quick talk/check runs. Returns true when there is something to talk
+ * to or check within reach in that direction (the leader is then left facing it); a click that
+ * finds nothing is ignored, instead of opening "No problem here". (px, py) are picture pixels. */
+bool overworld_mouse_checktalk(int px, int py) {
+    /* Picture pixel -> world pixel; the +12 aims at an NPC's body rather than its feet. */
+    int dx = (int16_t)ppu.bg_hofs[0] + px - (int16_t)game_state.leader_x_coord;
+    int dy = (int16_t)ppu.bg_vofs[0] + py + 12 - (int16_t)game_state.leader_y_coord;
+    if (dx > 48 || dx < -48 || dy > 48 || dy < -48)
+        return false;
+
+    int16_t dir = (dx < 0 ? -dx : dx) > (dy < 0 ? -dy : dy) ? (dx > 0 ? 2 : 6) : (dy > 0 ? 4 : 0);
+    int16_t leader_off = ENT(game_state.current_party_members);
+    int16_t old_dir = (int16_t)game_state.leader_direction;
+    int16_t old_ent_dir = (int16_t)entities.directions[leader_off];
+
+    game_state.leader_direction = dir;
+    entities.directions[leader_off] = dir;
+    update_entity_sprite(leader_off);
+
+    /* The same searches L runs; they try the facing direction first, so a hit that leaves the
+     * leader facing elsewhere belongs to something the click did not point at. */
+    int16_t id = find_nearby_talkable_tpt_entry();
+    bool ok = id != 0 && id != -1 && (int16_t)game_state.leader_direction == dir;
+    if (!ok) {
+        game_state.leader_direction = dir;
+        entities.directions[leader_off] = dir;
+        id = find_nearby_checkable_tpt_entry();
+        ok = id != 0 && id != -1 && (int16_t)game_state.leader_direction == dir;
+    }
+    if (!ok) {
+        game_state.leader_direction = old_dir;
+        entities.directions[leader_off] = old_ent_dir;
+        update_entity_sprite(leader_off);
+    }
+    return ok;
+}
+
 /* ---- TALK_TO (port of asm/overworld/talk_to.asm) ----
  *
  * Finds a nearby talkable NPC, looks up its text pointer from

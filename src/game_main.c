@@ -485,6 +485,12 @@ void host_process_frame(void) {
     if (capture_unwinding)
         current_pad = 0;
 
+    /* A mouse click advances text like A. (Menus read the mouse themselves, and a click on the
+     * world is handled by the overworld loop.) */
+    if (!capture_unwinding && platform_mouse()->left_pressed && g_mode_stack.depth &&
+        g_mode_stack.mode[g_mode_stack.depth - 1] == GAME_MODE_TEXT_PROMPT)
+        current_pad |= PAD_A;
+
     /* Demo playback: override pad input when playing back auto-movement.
      * Port of READ_JOYPAD demo section — demo_playback_tick() may
      * overwrite core.pad1_raw, so we call memory_update_joypad with the
@@ -1485,12 +1491,18 @@ StepResult mode_step_overworld(ModeState *mst) {
             if (ow.input_disable_frame_counter > 0) {
                 ow.input_disable_frame_counter--;
             } else if (!ow.pending_interactions) {
+                /* Mouse: a left click on something to talk to or check acts as L facing it;
+                 * a right click is B. */
+                const PlatformMouse *mouse = platform_mouse();
+                bool mouse_check = mouse->left_pressed &&
+                                   !(core.pad1_pressed & (PAD_A | PAD_CANCEL | PAD_X)) &&
+                                   overworld_mouse_checktalk(mouse->x, mouse->y);
                 if (core.pad1_pressed & PAD_A) {
                     memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
                     g_mode_push_init.pause_menu.phase = PM_ENTER;
                     st->phase = OWP_POST_TELEPORT;
                     return STEP_RESULT_PUSH_INIT(GAME_MODE_PAUSE_MENU, &g_mode_push_init);
-                } else if ((core.pad1_pressed & PAD_CANCEL) &&
+                } else if (((core.pad1_pressed & PAD_CANCEL) || mouse->right_pressed) &&
                            game_state.walking_style != WALKING_STYLE_BICYCLE) {
                     memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
                     g_mode_push_init.hppp_display.phase = HD_ENTER;
@@ -1504,7 +1516,7 @@ StepResult mode_step_overworld(ModeState *mst) {
                         st->phase = OWP_RESUME_TOWNMAP;
                         return STEP_RESULT_PUSH_INIT(GAME_MODE_TOWN_MAP, &g_mode_push_init);
                     }
-                } else if (core.pad1_pressed & PAD_L) {
+                } else if ((core.pad1_pressed & PAD_L) || mouse_check) {
                     memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
                     g_mode_push_init.quick_checktalk.phase = QCT_TEXT;
                     st->phase = OWP_POST_TELEPORT;

@@ -1132,6 +1132,11 @@ static bool run_command(const char *cmd, const char *arg, const char *line, uint
             rng_state.b = (uint16_t)v2;
         }
         printf("RNG %u %u\n", (unsigned)rng_state.a, (unsigned)rng_state.b);
+    } else if (strcmp(cmd, "mouse") == 0 || strcmp(cmd, "click") == 0 || strcmp(cmd, "rclick") == 0) {
+        /* mouse X Y / click X Y / rclick X Y: pointer position in picture pixels (the shot's
+         * pixels); click and rclick press the left and right button as well. */
+        if (nv >= 2)
+            platform_mouse_script(v1, v2, cmd[0] == 'c', cmd[0] == 'r');
     } else if (strcmp(cmd, "money") == 0) {
         game_state.money_carried = (uint32_t)v1;
         printf("MONEY %u\n", (unsigned)game_state.money_carried);

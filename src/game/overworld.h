@@ -698,6 +698,8 @@ int16_t find_nearby_checkable_tpt_entry(void);
  * Port of TALK_TO (asm/overworld/talk_to.asm).
  * Returns SNES ROM address of text, or 0 if nothing to talk to. */
 uint32_t talk_to(void);
+/* Left click on the world: face the click and talk/check as L does; false if nothing is there. */
+bool overworld_mouse_checktalk(int px, int py);
 
 /* Find a checkable NPC/object, look up its text/item data.
  * Port of CHECK (asm/overworld/check.asm).
