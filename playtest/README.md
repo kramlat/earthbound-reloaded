@@ -148,6 +148,7 @@ Instant (no frame passes):
 |---|---|
 | `shot [--crop W H] [--zoom N] [LABEL\|PATH.png]` | write the current frame as PNG (`shots/NNNN-LABEL.png`); `--crop` keeps a WxH box centred on the leader (clamped to the screen), `--zoom` scales it up N times |
 | `state [LABEL]` / `text` | print STATE/PARTY/FOLLOW/NEAR/ENEMIES lines / WIN+MENU lines |
+| `type TEXT` / `enter` | queue typed characters for a naming screen (up to 32 at once) / queue Enter, which ends the typing |
 | `mouse X Y` / `click X Y` / `rclick X Y` | put the pointer at picture pixel X,Y (the pixels of a `shot`); `click`/`rclick` also press the left/right button. A menu follows the pointer, a left click confirms the item under it or talks to / checks what is next to the leader in that direction, a right click is B |
 | `flag N [0\|1]` | read / set an event flag |
 | `give ITEM [CHAR]` | give item id to char 1-6 (default: first with room). Prints `GIVE item N (Name) -> char C Name`, or `FAILED` when the inventory (or every inventory) is full |

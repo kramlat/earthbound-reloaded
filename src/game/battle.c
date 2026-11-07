@@ -13,6 +13,7 @@
  *   calc_psi_damage_modifiers.asm, calc_psi_resistance_modifiers.asm
  */
 #include "game/battle.h"
+#include "game/ng_plus.h"
 #include "game/battle_internal.h"
 #include "game/game_state.h"
 #include "game/display_text.h"
@@ -198,6 +199,22 @@ void battle_init_enemy_stats(Battler *battler, uint16_t enemy_id) {
     /* Money and experience */
     battler->money = edata->money;
     battler->exp = edata->exp;
+
+    /* New Game+: every cycle makes the monsters tougher (and worth more). */
+    if (ng_plus_cycle() > 0) {
+        uint32_t pct = ng_plus_scale_percent();
+        uint32_t hp = (uint32_t)edata->hp * pct / 100;
+        if (hp > 9999) hp = 9999;
+        battler->hp_max = battler->hp_target = battler->hp = (uint16_t)hp;
+        uint32_t off = (uint32_t)(uint8_t)edata->offense * pct / 100;
+        uint32_t def = (uint32_t)(uint8_t)edata->defense * pct / 100;
+        battler->offense = (uint16_t)off;
+        battler->defense = (uint16_t)def;
+        battler->base_offense = (uint8_t)(off > 255 ? 255 : off);
+        battler->base_defense = (uint8_t)(def > 255 ? 255 : def);
+        battler->money = (uint16_t)((uint32_t)edata->money * pct / 100);
+        battler->exp = (uint32_t)edata->exp * pct / 100;
+    }
 
     /* Apply initial status effect */
     switch (edata->initial_status) {

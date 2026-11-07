@@ -272,6 +272,9 @@ bool save_game(int slot);
 bool load_game(int slot);
 bool erase_save(int slot);
 bool copy_save(int to, int from);
+/* Free space behind a slot's save blocks (per-slot image layout only; reads return 0 elsewhere). */
+bool save_aux_write(int slot, size_t offset, const void *src, size_t size);
+size_t save_aux_read(int slot, size_t offset, void *dst, size_t size);
 #ifdef EB_HAS_FILE_BROWSER
 typedef enum { RESTORE_OK = 0, RESTORE_UNREADABLE, RESTORE_INVALID } RestoreCheck;
 bool backup_save(int slot, const char *path);          /* write the slot's 8 KB image to path */

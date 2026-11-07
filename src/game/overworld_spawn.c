@@ -16,6 +16,7 @@
  */
 
 #include "game/overworld_internal.h"
+#include "game/ng_plus.h"
 #include "game/game_state.h"
 #include "game/battle.h"
 #include "game/audio.h"
@@ -242,6 +243,52 @@ void load_enemy_spawn_data(void) {
     enemy_spawn_data_loaded = true;
 }
 
+/* Crazy Mode: the monsters themselves are random too. Any group that spawns somewhere on the map
+ * in the normal game can show up anywhere; the pool is every group the placement table lists. A
+ * placement holds 8 slots, or 16 when its event flag switches to a second set of groups with a
+ * spawn chance of their own. */
+#define CRAZY_POOL_MAX 512
+static uint16_t crazy_pool[CRAZY_POOL_MAX];
+static int crazy_pool_count = -1;
+
+static uint16_t crazy_random_group(uint16_t normal_group) {
+    if (crazy_pool_count < 0) {
+        crazy_pool_count = 0;
+        size_t table_size = ASSET_SIZE(ASSET_DATA_ENEMY_PLACEMENT_GROUPS_PTR_TABLE_BIN);
+        size_t data_size = ASSET_SIZE(ASSET_DATA_ENEMY_PLACEMENT_GROUPS_BIN);
+        for (size_t id = 0; enemy_placement_groups_ptr_table && enemy_placement_groups_data && id * 4 + 3 <= table_size; id++) {
+            uint32_t rom_ptr = (uint32_t)enemy_placement_groups_ptr_table[id * 4]
+                             | ((uint32_t)enemy_placement_groups_ptr_table[id * 4 + 1] << 8)
+                             | ((uint32_t)enemy_placement_groups_ptr_table[id * 4 + 2] << 16);
+            size_t off = rom_ptr - ENEMY_PLACEMENT_GROUPS_ROM_BASE;
+            if (off + 4 > data_size) continue;
+            const uint8_t *pl = enemy_placement_groups_data + off;
+            int total = (read_u16_le(&pl[0]) != 0 && pl[2] != 0 && pl[3] != 0) ? 16 : 8;
+            /* Some placements are empty: stop at the start of the next one. */
+            size_t end = data_size;
+            for (size_t k = 0; k * 4 + 3 <= table_size; k++) {
+                size_t o = ((uint32_t)enemy_placement_groups_ptr_table[k * 4]
+                          | ((uint32_t)enemy_placement_groups_ptr_table[k * 4 + 1] << 8)
+                          | ((uint32_t)enemy_placement_groups_ptr_table[k * 4 + 2] << 16)) - ENEMY_PLACEMENT_GROUPS_ROM_BASE;
+                if (o > off && o < end) end = o;
+            }
+            const uint8_t *e = pl + 4;
+            for (int acc = 0; acc < total && (size_t)(e - enemy_placement_groups_data) + 3 <= end; e += 3) {
+                acc += e[0];
+                uint16_t g = read_u16_le(&e[1]);
+                bool seen = false;
+                for (int i = 0; i < crazy_pool_count; i++) seen |= crazy_pool[i] == g;
+                if (!seen && crazy_pool_count < CRAZY_POOL_MAX) crazy_pool[crazy_pool_count++] = g;
+            }
+        }
+    }
+    if (crazy_pool_count == 0)
+        return normal_group;
+    uint16_t r = (uint16_t)(rng_next_byte() | ((uint16_t)rng_next_byte() << 8));
+    return crazy_pool[r % crazy_pool_count];
+}
+
+
 /* GET_MAP_ENEMY_PLACEMENT (asm/overworld/get_map_enemy_placement.asm).
  * Returns encounter_id for tile at (x, y) in the 128x160 grid.
  * x: 0-127, y: 0-159 (64px tile coordinates). */
@@ -395,8 +442,9 @@ select_enemy_group:
         }
 
         /* Assembly lines 192-206: Roll spawn chance (PIRACY_FLAG check).
-         * PIRACY_FLAG is always 0 in legitimate copies, so always roll. */
-        {
+         * PIRACY_FLAG is 0 in legitimate copies, so they roll; a pirated copy skips the roll and
+         * spawns on every attempt. Crazy Mode is that. */
+        if (!ng_plus_crazy()) {
             /* RAND * 100 via MULT168, then XBA: scales the byte to 0-99
              * (a different distribution from RAND % 100). */
             uint16_t roll = (uint16_t)(((uint16_t)rng_next_byte() * 100) >> 8);
@@ -423,6 +471,8 @@ select_enemy_group:
 
         /* Assembly lines 239-250: Read group ID */
         battle_group_id = read_u16_le(&grp_entry[1]);
+        if (ng_plus_crazy())
+            battle_group_id = crazy_random_group(battle_group_id);
         ow.spawning_enemy_group = battle_group_id;
 
         /* Assembly lines 251-256: Check for duplicate enemy at same spawn tile.

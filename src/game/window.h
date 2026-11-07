@@ -299,6 +299,10 @@ void set_window_title(uint16_t window_id, const char *title, int max_len);
  * tilemap entries. Used by display-only file select menus. */
 void highlight_menu_item(WindowInfo *w, uint16_t item_index, uint16_t palette, bool set);
 
+/* Resize a just-created window to `height` tiles (its content is cleared). */
+void window_set_height(WindowInfo *w, uint16_t height);
+
+
 /* Add a menu item to the focus window */
 void add_menu_item(const char *label, uint16_t userdata, uint16_t text_x, uint16_t text_y);
 

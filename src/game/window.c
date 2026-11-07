@@ -274,6 +274,19 @@ WindowInfo *create_window(uint16_t window_id) {
     return w;
 }
 
+void window_set_height(WindowInfo *w, uint16_t height) {
+    if (!w || w->height == height) return;
+    w->height = (uint8_t)height;
+    uint16_t needed = (w->width - 2) * (w->height - 2);
+    if (needed > WINDOW_TILEMAP_MAX) needed = WINDOW_TILEMAP_MAX;
+    tilemap_pool_free(w);
+    w->content_tilemap = tilemap_pool_alloc(needed);
+    assert(w->content_tilemap && "tilemap pool exhausted — increase WINDOW_TILEMAP_POOL_SIZE");
+    w->content_tilemap_size = needed;
+    w->content_tilemap_offset = (uint16_t)(w->content_tilemap - win.tilemap_pool);
+    memset(w->content_tilemap, 0, w->content_tilemap_size * sizeof(uint16_t));
+}
+
 void close_window(uint16_t window_id) {
     if (window_id == WINDOW_ID_NONE) return;
     if (text_trace_hook)

@@ -116,6 +116,7 @@ typedef struct {
 #ifdef EB_HAS_INPUT_SETTINGS
 const PlatformMouse *platform_mouse(void);
 void platform_mouse_script(int x, int y, bool left, bool right);   /* input scripts: put the pointer at x,y and click */
+void platform_text_input_script(int c);                            /* input scripts: queue a typed character (13 = Enter) */
 #else
 static inline const PlatformMouse *platform_mouse(void) { static const PlatformMouse none; return &none; }
 #endif

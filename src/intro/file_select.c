@@ -1,5 +1,6 @@
 #include "intro/file_select.h"
 #include "game/window.h"
+#include "game/ng_plus.h"
 #include "game/text.h"
 #include "game/game_state.h"
 #include "game/display_text.h"
@@ -214,10 +215,15 @@ static void file_select_init(void) {
 #define BROWSE_RESULT_COPY     1003   /* these three act on the highlighted save */
 #define BROWSE_RESULT_DELETE   1004
 #define BROWSE_RESULT_BACKUP   1005
-enum { BROWSE_NORMAL = 0, BROWSE_COPY_DEST = 1, BROWSE_RESTORE_DEST = 2 };
+#define BROWSE_RESULT_NGPLUS   1006   /* New Game+ (only listed when a cleared save exists) */
+#define BROWSE_RESULT_CRAZY    1007   /* Crazy Mode (only listed once a New Game+ has been finished) */
+enum { BROWSE_NORMAL = 0, BROWSE_COPY_DEST = 1, BROWSE_RESTORE_DEST = 2, BROWSE_NG_SOURCE = 3, BROWSE_NG_DEST = 4, BROWSE_CRAZY_DEST = 5 };
 
 static char     slot_names[SAVE_COUNT][NAME_MAX_CHARS + 1];
 static uint8_t  slot_levels[SAVE_COUNT];
+static bool     slot_cleared[SAVE_COUNT];   /* beaten: New Game+ unlocked */
+static bool     any_cleared;
+static bool     any_crazy_unlocked;         /* a New Game+ has been finished */
 static uint16_t browse_top;      /* first slot shown (0-based) */
 static uint16_t browse_cursor;   /* highlighted slot (0-based) */
 static uint8_t  browse_pane;     /* 0 = options, 1 = saves */
@@ -230,11 +236,16 @@ static uint8_t  input_guard;     /* frames to ignore buttons after a screen open
 /* Read every slot once: occupancy, first character's name and level. Assembly
  * (file_select_menu.asm:20-25) treats favourite_thing[1] != 0 as "in use". */
 static void file_select_scan_saves(void) {
+    any_cleared = false;
+    any_crazy_unlocked = false;
     for (int slot = 0; slot < SAVE_COUNT; slot++) {
         bool occupied = load_game(slot) && game_state.favourite_thing[1] != 0;
         save_files_present[slot] = occupied;
         slot_names[slot][0] = '\0';
         slot_levels[slot] = 0;
+        slot_cleared[slot] = occupied && ng_plus_slot_cleared(slot);
+        any_cleared |= slot_cleared[slot];
+        any_crazy_unlocked |= slot_cleared[slot] && ng_plus_crazy_unlocked(slot);
         if (!occupied) continue;
         for (int i = 0; i < NAME_MAX_CHARS && party_characters[0].name[i]; i++)
             slot_names[slot][i] = eb_char_to_ascii(party_characters[0].name[i]);
@@ -243,20 +254,28 @@ static void file_select_scan_saves(void) {
     }
 }
 
-/* The left column, top to bottom. */
-static const uint16_t browse_options[] = {
-    BROWSE_RESULT_COPY,
-    BROWSE_RESULT_DELETE,
+/* The left column, top to bottom; New Game+ is listed only while a cleared save exists. */
+static uint16_t browse_options[8];
+static const char *browse_option_labels[8];
+static int browse_option_n;
+static void browse_build_options(void) {
+    int n = 0;
+    if (any_cleared) { browse_options[n] = BROWSE_RESULT_NGPLUS; browse_option_labels[n++] = "New Game+"; }
+    if (any_crazy_unlocked) { browse_options[n] = BROWSE_RESULT_CRAZY; browse_option_labels[n++] = "Crazy Mode"; }
+    browse_options[n] = BROWSE_RESULT_COPY;   browse_option_labels[n++] = "Copy Save";
+    browse_options[n] = BROWSE_RESULT_DELETE; browse_option_labels[n++] = "Delete Save";
 #ifdef EB_HAS_FILE_BROWSER
-    BROWSE_RESULT_BACKUP,
-    BROWSE_RESULT_RESTORE,
+    browse_options[n] = BROWSE_RESULT_BACKUP;  browse_option_labels[n++] = "Backup Save";
+    browse_options[n] = BROWSE_RESULT_RESTORE; browse_option_labels[n++] = "Restore Save";
 #endif
 #ifdef EB_HAS_INPUT_SETTINGS
-    BROWSE_RESULT_SETTINGS,
+    browse_options[n] = BROWSE_RESULT_SETTINGS; browse_option_labels[n++] = "Settings";
 #endif
-    BROWSE_RESULT_EXIT,
-};
-#define BROWSE_OPTION_COUNT ((int)(sizeof(browse_options) / sizeof(browse_options[0])))
+    browse_options[n] = BROWSE_RESULT_EXIT;   browse_option_labels[n++] = "Exit Game";
+    browse_option_n = n;
+    if (browse_option >= n) browse_option = 0;
+}
+#define BROWSE_OPTION_COUNT browse_option_n
 
 static void browse_show_cursor(uint16_t slot) {
     browse_cursor = slot;
@@ -283,7 +302,10 @@ static void browse_draw(bool show_cursor) {
     w->menu_count = 0;
     char title[24];
     snprintf(title, sizeof(title), browse_mode == BROWSE_COPY_DEST ? "Copy to %d/%d" :
-                                   browse_mode == BROWSE_RESTORE_DEST ? "Restore to %d/%d" : "Saves %d/%d",
+                                   browse_mode == BROWSE_RESTORE_DEST ? "Restore to %d/%d" :
+                                   browse_mode == BROWSE_NG_SOURCE ? "New Game+ from %d/%d" :
+                                   browse_mode == BROWSE_NG_DEST ? "New Game+ in %d/%d" :
+                                   browse_mode == BROWSE_CRAZY_DEST ? "Crazy Mode in %d/%d" : "Saves %d/%d",
              browse_cursor + 1, SAVE_COUNT);
     set_window_title(WINDOW_FILE_SELECT_MAIN, title, -1);
 
@@ -292,7 +314,8 @@ static void browse_draw(bool show_cursor) {
         int slot = browse_top + r;
         if (slot >= SAVE_COUNT) break;
         if (save_files_present[slot])
-            snprintf(labels[r], sizeof(labels[r]), "%d: %s", slot + 1, slot_names[slot]);
+            snprintf(labels[r], sizeof(labels[r]), "%d: %s%s", slot + 1, slot_names[slot],
+                     slot_cleared[slot] ? " +" : "");   /* + marks a beaten game: New Game+ unlocked */
         else
             snprintf(labels[r], sizeof(labels[r]), "%d: %s", slot + 1,
                      browse_mode != BROWSE_NORMAL ? "Empty" : "Start New Game");
@@ -317,18 +340,10 @@ static void browse_draw(bool show_cursor) {
         WindowInfo *opts = create_window(WINDOW_FILE_SELECT_OPTIONS);
         if (opts) {
             opts->menu_count = 0;
-            static const char *const option_labels[] = {
-                "Copy Save", "Delete Save",
-#ifdef EB_HAS_FILE_BROWSER
-                "Backup Save", "Restore Save",
-#endif
-#ifdef EB_HAS_INPUT_SETTINGS
-                "Settings",
-#endif
-                "Exit Game",
-            };
+            browse_build_options();
+            window_set_height(opts, (uint16_t)(2 * BROWSE_OPTION_COUNT + 2));   /* tall enough for every row */
             for (int row = 0; row < BROWSE_OPTION_COUNT; row++)
-                add_menu_item(option_labels[row], browse_options[row], 0, (uint16_t)row);
+                add_menu_item(browse_option_labels[row], browse_options[row], 0, (uint16_t)row);
             print_menu_items();
             if (show_cursor && browse_pane == 0) highlight_menu_item(opts, browse_option, 6, true);
         }
@@ -375,6 +390,11 @@ static uint16_t browse_step_input(void) {
             int slot = browse_cursor;
             if (browse_mode == BROWSE_COPY_DEST && (save_files_present[slot] || slot == current_save_slot - 1)) {
                 play_sfx(4);   /* can't copy onto a used slot */
+                return 0;
+            }
+            if ((browse_mode == BROWSE_NG_SOURCE && !slot_cleared[slot]) ||
+                ((browse_mode == BROWSE_NG_DEST || browse_mode == BROWSE_CRAZY_DEST) && save_files_present[slot])) {
+                play_sfx(4);   /* New Game+ continues a cleared save, in a free slot */
                 return 0;
             }
             return (uint16_t)(slot + 1);
@@ -1978,6 +1998,10 @@ StepResult mode_step_new_game_naming(ModeState *ms) {
         }
     }
 
+    /* New Game+: the cleared game's levels, stats and non-key items replace the fresh ones. */
+    ng_plus_clear_slot((int)current_save_slot - 1);
+    ng_plus_apply_new_game();
+
     /* Sync current HP/PP = max for all characters (assembly lines 538-555) */
     for (int i = 0; i < 4; i++) {
         party_characters[i].current_hp = party_characters[i].max_hp;
@@ -2404,6 +2428,31 @@ StepResult mode_step_file_menu(ModeState *ms) {
                     return fm_push_selection(st, FM_RESTORE_CONFIRM_RESULT, 1);
                 }
 #endif
+                if (browse_mode == BROWSE_NG_SOURCE || browse_mode == BROWSE_NG_DEST || browse_mode == BROWSE_CRAZY_DEST) {
+                    if (r == 0xFFFF) {                   /* B: back to the save list */
+                        ng_plus_cancel();
+                        close_all_windows();
+                        st->phase = FM_SELECT;
+                    } else if (browse_mode == BROWSE_NG_SOURCE) {
+                        ng_plus_begin(r - 1);            /* now the free slot to play it in */
+                        browse_mode = BROWSE_NG_DEST;
+                        input_guard = INPUT_GUARD_FRAMES;
+                        uint16_t first = 0;
+                        while (first < SAVE_COUNT - 1 && save_files_present[first]) first++;
+                        browse_show_cursor(first);
+                        browse_draw(true);
+                        browse_dirty = 0;
+                        window_tick_no_actionscript();
+                        return STEP_RESULT_CONTINUE();
+                    } else {                             /* start the new game in slot r with the party carried over
+                                                          * (or from a blank slate, for Crazy Mode) */
+                        current_save_slot = (uint8_t)r;
+                        game_state_init();
+                        close_all_windows();
+                        st->phase = FM_NG_TS;
+                    }
+                    continue;
+                }
                 if (browse_mode == BROWSE_COPY_DEST) {
                     dt.enable_word_wrap = 0;
                     if (r == 0xFFFF) {                   /* B: back to the save list */
@@ -2471,6 +2520,37 @@ StepResult mode_step_file_menu(ModeState *ms) {
                 st->result = selected == BROWSE_RESULT_COPY ? 2 : selected == BROWSE_RESULT_DELETE ? 3 : 5;
                 st->phase = FM_SUBMENU_RESULT;
                 continue;
+            }
+            if (selected == BROWSE_RESULT_NGPLUS) {
+                browse_mode = BROWSE_NG_SOURCE;
+                input_guard = INPUT_GUARD_FRAMES;
+                browse_pane = 1;
+                {
+                    uint16_t first = 0;                  /* start on the first cleared save */
+                    while (first < SAVE_COUNT - 1 && !slot_cleared[first]) first++;
+                    browse_show_cursor(first);
+                }
+                browse_draw(true);
+                browse_dirty = 0;
+                window_tick_no_actionscript();
+                st->phase = FM_BROWSE;
+                return STEP_RESULT_CONTINUE();
+            }
+            if (selected == BROWSE_RESULT_CRAZY) {
+                ng_plus_begin_crazy();
+                browse_mode = BROWSE_CRAZY_DEST;
+                input_guard = INPUT_GUARD_FRAMES;
+                browse_pane = 1;
+                {
+                    uint16_t first = 0;                  /* start on the first free slot */
+                    while (first < SAVE_COUNT - 1 && save_files_present[first]) first++;
+                    browse_show_cursor(first);
+                }
+                browse_draw(true);
+                browse_dirty = 0;
+                window_tick_no_actionscript();
+                st->phase = FM_BROWSE;
+                return STEP_RESULT_CONTINUE();
             }
             if (selected == BROWSE_RESULT_EXIT) {
                 platform_request_quit();

@@ -403,6 +403,39 @@ static bool write_sram_version_word(int slot) {
     return platform_save_write(ver, image_base + SRAM_VERSION_WORD_OFFSET, sizeof(ver));
 }
 
+
+/* ---- Per-slot aux area (port addition) ---------------------------------------------
+ * The free space of a slot's 8 KB SRAM image behind its two save blocks, for data the retail
+ * layout has no room for (the New Game+ snapshot). Only the per-slot image layout has it. */
+#ifdef EB_SAVE_PER_SLOT_IMAGE
+#define SAVE_AUX_SIZE (SRAM_VERSION_WORD_OFFSET - SAVE_COPY_COUNT * (int)sizeof(SaveBlock))
+bool save_aux_write(int slot, size_t offset, const void *src, size_t size) {
+    if (slot < 0 || slot >= SAVE_COUNT || offset + size > (size_t)SAVE_AUX_SIZE) return false;
+    return platform_save_write(src, save_block_offset(slot, SAVE_COPY_COUNT) + offset, size);
+}
+size_t save_aux_read(int slot, size_t offset, void *dst, size_t size) {
+    if (slot < 0 || slot >= SAVE_COUNT || offset + size > (size_t)SAVE_AUX_SIZE) return 0;
+    return platform_save_read(dst, save_block_offset(slot, SAVE_COPY_COUNT) + offset, size);
+}
+static void save_aux_erase(int slot) {
+    static const uint8_t zero[512];
+    for (size_t off = 0; off < sizeof(zero) * 2; off += sizeof(zero))
+        save_aux_write(slot, off, zero, sizeof(zero));
+}
+static void save_aux_copy(int to, int from) {
+    uint8_t buf[512];
+    for (size_t off = 0; off < sizeof(buf) * 2; off += sizeof(buf)) {
+        if (save_aux_read(from, off, buf, sizeof(buf)) != sizeof(buf)) memset(buf, 0, sizeof(buf));
+        save_aux_write(to, off, buf, sizeof(buf));
+    }
+}
+#else
+bool save_aux_write(int slot, size_t offset, const void *src, size_t size) { (void)slot; (void)offset; (void)src; (void)size; return false; }
+size_t save_aux_read(int slot, size_t offset, void *dst, size_t size) { (void)slot; (void)offset; (void)dst; (void)size; return 0; }
+static void save_aux_erase(int slot) { (void)slot; }
+static void save_aux_copy(int to, int from) { (void)to; (void)from; }
+#endif
+
 /* Compute ADD checksum for a save block.
  * Port of CALC_SAVE_BLOCK_ADD_CHECKSUM (asm/system/saves/calc_save_block_checksum.asm):
  * sums every byte of the save data (excluding the header). */
@@ -517,6 +550,7 @@ bool erase_save(int slot) {
             return false;
     }
 
+    save_aux_erase(slot);
     return write_sram_version_word(slot);
 }
 
@@ -538,6 +572,7 @@ bool copy_save(int to, int from) {
             return false;
     }
 
+    save_aux_copy(to, from);
     return write_sram_version_word(to);
 }
 

@@ -1137,6 +1137,15 @@ static bool run_command(const char *cmd, const char *arg, const char *line, uint
          * pixels); click and rclick press the left and right button as well. */
         if (nv >= 2)
             platform_mouse_script(v1, v2, cmd[0] == 'c', cmd[0] == 'r');
+    } else if (strcmp(cmd, "type") == 0 || strcmp(cmd, "enter") == 0) {
+        /* type TEXT: queue the characters as typed text (the naming screens read them);
+         * enter: queue Enter, which ends the typing. */
+        if (cmd[0] == 'e') {
+            platform_text_input_script(13);
+        } else {
+            for (const char *c = arg; *c; c++)
+                platform_text_input_script((unsigned char)*c);
+        }
     } else if (strcmp(cmd, "money") == 0) {
         game_state.money_carried = (uint32_t)v1;
         printf("MONEY %u\n", (unsigned)game_state.money_carried);

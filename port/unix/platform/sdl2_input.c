@@ -236,6 +236,11 @@ void platform_input_shutdown(void) {
     if (pad_dev) { SDL_GameControllerClose(pad_dev); pad_dev = NULL; }
 }
 
+void platform_text_input_script(int c) {
+    if (text_tail - text_head < sizeof(text_queue))
+        text_queue[text_tail++ % sizeof(text_queue)] = (uint8_t)c;
+}
+
 static PlatformMouse mouse;
 const PlatformMouse *platform_mouse(void) { return &mouse; }
 void platform_mouse_script(int x, int y, bool left, bool right) {

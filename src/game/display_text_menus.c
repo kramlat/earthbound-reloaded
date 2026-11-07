@@ -5,6 +5,7 @@
  * escargo express, teleport destination selection, name entry,
  * sound stone, and special event dispatch.
  */
+#include "game/ng_plus.h"
 #include "game/display_text.h"
 #include "game/display_text_internal.h"
 #include "game/game_state.h"
@@ -655,6 +656,7 @@ StepResult mode_step_special_event(ModeState *st) {
         s->phase = SE_RESULT;
         return STEP_RESULT_PUSH_INIT(GAME_MODE_ENDING, &g_mode_push_init);
     case 12:  /* PLAY_CREDITS — run-to-completion GAME_MODE_ENDING (staff credits). */
+        ng_plus_record_clear();   /* the game is beaten: this slot unlocks New Game+ */
         g_mode_push_init.ending.phase = EN_CR_SETUP;
         s->result = 0;
         s->phase = SE_RESULT;
