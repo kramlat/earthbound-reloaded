@@ -154,6 +154,7 @@ static void file_select_init(void) {
      * Clear fill[2] in case a previous screen left it set (e.g. logos). */
     ppu.bg_viewport_fill[1] = BG_VIEWPORT_FILL;
     ppu.bg_viewport_fill[2] = BG_VIEWPORT_CENTER;
+    window_anchors_enabled = false;   /* the menus stay centred, not pinned to the corners */
 
     /* Step 11b: Set OBSEL = $62 (OBJ tile base at VRAM word $4000, 8x8/16x16 sizes)
        From OVERWORLD_SETUP_VRAM → SET_OAM_SIZE #$0062 */

@@ -979,14 +979,21 @@ void render_all_windows(void) {
     window_update_anchors();
 }
 
-/* Windows in the upper corners stay in the corners of a wide picture instead of sitting in the
+/* Windows in the corners (upper or lower) stay in the corners of a wide picture instead of sitting in the
  * centred 256-pixel band. Windows that touch or overlap form one group, which moves as a whole
  * (a PSI list and its category window stay together); a group moves only if it reaches one
- * upper side of the screen and not the other. */
+ * side of the screen and not the other. */
+bool window_anchors_enabled = true;
+
 void window_update_anchors(void) {
+    uint8_t prev[32][32];
+    memcpy(prev, eb_text_anchor, sizeof(prev));
     memset(eb_text_anchor, 0, sizeof(eb_text_anchor));
     eb_text_anchor_any = false;
-    if (EB_VIEWPORT_WIDTH <= SNES_WIDTH) return;
+    memset(eb_text_anchor_v, 0, sizeof(eb_text_anchor_v));
+    eb_text_anchor_v_any = false;
+    const bool wide_x = EB_VIEWPORT_WIDTH > SNES_WIDTH, wide_y = EB_VIEWPORT_HEIGHT > SNES_HEIGHT;
+    if (!window_anchors_enabled || (!wide_x && !wide_y)) return;
 
     int idx[MAX_WINDOWS], n = 0;
     for (int wi = win.window_head; wi >= 0 && n < MAX_WINDOWS; wi = win.windows[wi].next)
@@ -1007,27 +1014,58 @@ void window_update_anchors(void) {
             }
 
     for (int g = 0; g < n; g++) {
-        int min_x = 99, max_x = -1, min_y = 99;
+        int min_x = 99, max_x = -1, min_y = 99, max_y = -1;
         for (int i = 0; i < n; i++) {
             if (group[i] != g) continue;
             const WindowInfo *w = &win.windows[idx[i]];
             if (w->x < min_x) min_x = w->x;
             if (w->x + w->width > max_x) max_x = w->x + w->width;
             if (w->y < min_y) min_y = w->y;
+            if (w->y + w->height > max_y) max_y = w->y + w->height;
         }
         if (max_x < 0) continue;
-        bool upper = min_y < 14;
+        /* Groups in the top or bottom of the screen sit flush with that edge of a tall picture
+         * (the battle HP boxes at the bottom, the menus at the top), whatever the aspect ratio. */
+        uint8_t vanchor = !wide_y ? 0 : (min_y <= 3 && max_y < 24) ? 1 : (min_y >= 12 && max_y >= 24) ? 2 : 0;
         bool left = min_x <= 4, right = max_x >= 28;
-        uint8_t anchor = (upper && left && !right) ? 1 : (upper && right && !left) ? 2 : 0;
-        if (!anchor) continue;
+        uint8_t anchor = !wide_x ? 0 : (left && !right) ? 1 : (right && !left) ? 2 : 0;
+        /* A group reaching both sides (a command menu plus the text window opened from it)
+         * must not drag its windows back into the band: the menu would jump away from the
+         * corner it sat in a moment ago. Keep the side the group's windows were already
+         * pinned to, and the group moves on together (the windows overlap each other). */
+        if (wide_x && !anchor && left && right) {
+            for (int i = 0; i < n && !anchor; i++) {
+                if (group[i] != g) continue;
+                const WindowInfo *w = &win.windows[idx[i]];
+                for (int ty = w->y; ty < w->y + w->height && ty < 32 && !anchor; ty++)
+                    for (int tx = w->x; tx < w->x + w->width && tx < 32; tx++)
+                        if (prev[ty][tx]) { anchor = prev[ty][tx]; break; }
+            }
+        }
+        if (!anchor && !vanchor) continue;
         for (int i = 0; i < n; i++) {
             if (group[i] != g) continue;
             const WindowInfo *w = &win.windows[idx[i]];
             for (int ty = w->y; ty < w->y + w->height && ty < 32; ty++)
-                for (int tx = w->x; tx < w->x + w->width && tx < 32; tx++)
+                for (int tx = w->x; tx < w->x + w->width && tx < 32; tx++) {
                     eb_text_anchor[ty][tx] = anchor;
+                    eb_text_anchor_v[ty][tx] = vanchor;
+                }
         }
-        eb_text_anchor_any = true;
+        if (anchor) eb_text_anchor_any = true;
+        if (vanchor) eb_text_anchor_v_any = true;
+    }
+
+    /* The party's HP/PP boxes are not WindowInfo windows (they are drawn straight into the
+     * text tilemap, centred on HPPP_CENTER_TILE), so pin their tiles to the bottom edge here. */
+    if (wide_y && (ow.currently_drawn_hppp_windows & 0xFF)) {
+        int count = game_state.player_controlled_party_count & 0xFF;
+        int x0 = HPPP_CENTER_TILE - count * HPPP_WINDOW_WIDTH / 2;
+        for (int ty = ACTIVE_HPPP_WINDOW_Y_OFFSET - 1; ty < 32; ty++)
+            for (int tx = x0; tx < x0 + count * HPPP_WINDOW_WIDTH && tx < 32; tx++)
+                if (tx >= 0)
+                    eb_text_anchor_v[ty][tx] = 3;   /* flush: the row under the boxes is blank */
+        eb_text_anchor_v_any = true;
     }
 }
 
@@ -1798,6 +1836,56 @@ static StepResult sm_setup_current_option(WindowInfo *w, SelectionMenuState *st)
  * tick). Reads directional/confirm/cancel input and mutates `st`/`w`. Returns
  * the StepResult; *handled is set true if the result should be returned to the
  * pump (a move/page-flip CONTINUE, or a POP), false to fall through to render. */
+/* ---- Mouse picking ---- */
+
+/* Which text-layer tile is under picture pixel (px, py)? The inverse of the renderer's placement
+ * of the text layer: centred in the picture, then moved by the corner/edge pinning of
+ * window_update_anchors (anchor x: 1 left, 2 right; anchor y: 1 top, 2/3 bottom). A tile counts
+ * only for the placement it is actually drawn in. */
+static bool window_screen_to_tile(int px, int py, int *tx, int *ty) {
+    const int pad_left = (EB_VIEWPORT_WIDTH - SNES_WIDTH) / 2;
+    const int right_shift = EB_VIEWPORT_WIDTH - SNES_WIDTH - pad_left;
+    const int tall = EB_VIEWPORT_HEIGHT - SNES_HEIGHT;
+    const int soff = ppu.sprite_y_offset;
+    for (int xa = 0; xa < 3; xa++) {
+        int sx = px - pad_left - (xa == 1 ? -pad_left : xa == 2 ? right_shift : 0);
+        if (sx < 0 || sx >= SNES_WIDTH) continue;
+        for (int va = 0; va < 4; va++) {
+            int line = py - soff + (va == 0 ? 0 : va == 1 ? soff : soff - tall - (va == 3 ? 8 : 0));
+            if (line < 0 || line >= SNES_HEIGHT) continue;
+            int col = sx >> 3, row = line >> 3;
+            if (eb_text_anchor[row][col] != xa || eb_text_anchor_v[row][col] != va) continue;
+            *tx = col;
+            *ty = row;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The item of menu window w under picture pixel (px, py), or -1. An item covers its two tile rows
+ * from its marker column to the next item on its row (or the window's right edge). */
+static int window_pick_menu_item(const WindowInfo *w, int px, int py) {
+    int tx, ty;
+    if (!window_screen_to_tile(px, py, &tx, &ty)) return -1;
+    for (unsigned i = 0; i < w->menu_count; i++) {
+        const MenuItem *it = window_menu_item(w, i);
+        if (it->page != w->menu_page_number && it->page != 0) continue;
+        int row = w->y + 1 + it->text_y * 2;
+        int c0 = w->x + it->text_x;
+        int c1 = w->x + w->width - 1;
+        for (unsigned j = 0; j < w->menu_count; j++) {
+            const MenuItem *o = window_menu_item(w, j);
+            if (o->text_y == it->text_y && o->text_x > it->text_x &&
+                (o->page == w->menu_page_number || o->page == 0) && w->x + o->text_x < c1)
+                c1 = w->x + o->text_x;
+        }
+        if (ty >= row && ty < row + 2 && tx >= c0 && tx < c1)
+            return (int)i;
+    }
+    return -1;
+}
+
 static StepResult sm_handle_input(WindowInfo *w, SelectionMenuState *st, bool *handled) {
     *handled = true;
 
@@ -1805,6 +1893,27 @@ static StepResult sm_handle_input(WindowInfo *w, SelectionMenuState *st, bool *h
        Assembly checks PAD_PRESS first (with MOVE_CURSOR for wrap-around),
        then PAD_HELD (with FIND_NEXT_MENU_OPTION directly, no wrap). */
     uint16_t pressed = platform_input_get_pad_new();
+
+    /* Mouse: pointing at an item selects it (as a cursor move does), a left click on one confirms
+     * it, a right click cancels. A click that lands off the items does nothing. */
+    const PlatformMouse *mouse = platform_mouse();
+    if (mouse->right_pressed)
+        pressed |= PAD_B;
+    if (mouse->moved || mouse->left_pressed) {
+        int hit = window_pick_menu_item(w, mouse->x, mouse->y);
+        if (hit >= 0 && hit != w->current_option) {
+            w->current_option = (uint16_t)hit;
+            if (mouse->left_pressed) {
+                pressed |= PAD_A;                  /* confirm it below, cursor callbacks skipped */
+            } else {
+                play_sfx(3);                       /* SFX::CURSOR3 */
+                return sm_setup_current_option(w, st);
+            }
+        } else if (hit >= 0 && mouse->left_pressed) {
+            pressed |= PAD_A;
+        }
+    }
+
     int16_t move_result = -1;
     int16_t text_x = (w->current_option < w->menu_count)
                      ? window_menu_item(w, w->current_option)->text_x : 0;
@@ -2258,6 +2367,7 @@ void undraw_hp_pp_window(uint16_t char_id) {
 
     /* Clear the drawn bit for this character */
     ow.currently_drawn_hppp_windows &= ~(1 << char_id);
+    window_update_anchors();   /* the boxes are pinned to the bottom edge while drawn */
 
     /* Determine Y row offset: active character is one row higher */
     uint16_t y_offset;
@@ -2758,6 +2868,7 @@ void draw_hp_pp_window(uint16_t char_id) {
  */
 void draw_and_mark_hppp_window(uint16_t char_id) {
     ow.currently_drawn_hppp_windows |= (1 << (char_id & 0xFF));
+    window_update_anchors();
     draw_hp_pp_window(char_id);
     win.hppp_meter_area_needs_update = 1;
 }

@@ -142,6 +142,8 @@ extern PPUState ppu __attribute__((aligned(4)));
  * is merged into the wide picture. Rows x columns of the 32x32 text tilemap. */
 extern uint8_t eb_text_anchor[32][32];
 extern bool eb_text_anchor_any;
+extern uint8_t eb_text_anchor_v[32][32];   /* 0 in the band, 1 top edge, 2 bottom edge, 3 bottom edge less one row */
+extern bool eb_text_anchor_v_any;
 
 void ppu_init(void);
 

@@ -1448,6 +1448,14 @@ static inline bool hdma_window_contains(int win, int wx, int wy)
 }
 #endif
 
+/* The window text layer is whichever BG has its tilemap at the text layer's VRAM address: BG3 in
+ * the overworld and most battles, BG1 in the mode 0 battle styles. */
+static inline bool is_text_bg(int bg)
+{
+    return (ppu.bg_sc[bg] & 0xFC) == 0x7C /* text layer tilemap, word $7C00 */ &&
+           ppu.bg_viewport_fill[bg] != BG_VIEWPORT_FILL;
+}
+
 /* ---- Wide-viewport gutter continuation of per-scanline (HDMA) windows ----
  *
  * Window registers only cover the native 256x224 band, so a wide-mode gutter
@@ -2755,13 +2763,11 @@ void PPU_HOT_FUNC(ppu_render_frame_ex)(int ctx_id, int y_start, int y_end,
         /* Base TM/TS for this scanline (before window masking) */
         uint8_t base_tm, base_ts;
         if (ppu.tm_hdma_active) {
-            if (snes_scanline >= 0 && snes_scanline < SNES_HEIGHT) {
-                base_tm = ppu.tm_per_scanline[snes_scanline];
-                base_ts = ppu.ts_per_scanline[snes_scanline];
-            } else {
-                base_tm = 0;
-                base_ts = 0;
-            }
+            /* Rows above and below the 224-line picture continue the letterbox bar at that
+             * edge, so the text layer (HP/PP boxes pinned to the bottom edge) can use them. */
+            int tl = snes_scanline < 0 ? 0 : snes_scanline >= SNES_HEIGHT ? SNES_HEIGHT - 1 : snes_scanline;
+            base_tm = ppu.tm_per_scanline[tl];
+            base_ts = ppu.ts_per_scanline[tl];
         } else {
             base_tm = ppu.tm;
             base_ts = ppu.ts;
@@ -2932,6 +2938,7 @@ void PPU_HOT_FUNC(ppu_render_frame_ex)(int ctx_id, int y_start, int y_end,
                  * picture) keep drawing to the viewport edge. */
                 if ((unsigned)(snes_scanline - (ppu.sprite_y_offset ? 0 : 1)) >=
                         SNES_HEIGHT &&
+                    !(is_text_bg(bg) && eb_text_anchor_v_any) &&
                     ppu.bg_viewport_fill[bg] != BG_VIEWPORT_CLAMP &&
                     (ppu.sprite_y_offset ||
                      ppu.bg_viewport_fill[bg] != BG_VIEWPORT_TALL)) {
@@ -2994,7 +3001,24 @@ void PPU_HOT_FUNC(ppu_render_frame_ex)(int ctx_id, int y_start, int y_end,
                 temp_ctx.emit_lo = SNES_WIDTH;
                 temp_ctx.emit_hi = 0;
 
-                render_bg_scanline(bg, eff_scanline, bg_bpp[bg],
+                /* Text layer (BG3): windows pinned to the top or bottom of a tall picture
+                 * are drawn from the line that puts them flush with that edge, one pass per
+                 * placement (0 = in the band, 1 = top, 2 = bottom, 3 = bottom with the last tile row off the edge); each pass keeps only its
+                 * own tiles. The band check above is then done per pass. */
+                const bool vanch = is_text_bg(bg) && eb_text_anchor_v_any;
+                for (int vp = 0; vp < (vanch ? 4 : 1); vp++) {
+                int vline = eff_scanline;
+                if (vp == 1)
+                    vline += ppu.sprite_y_offset;
+                else if (vp >= 2)   /* 3: bottom, minus the blank row under the HP/PP boxes */
+                    vline += ppu.sprite_y_offset - (EB_VIEWPORT_HEIGHT - SNES_HEIGHT) - (vp == 3 ? 8 : 0);
+                if (vanch &&
+                    (unsigned)(vline - (ppu.sprite_y_offset ? 0 : 1)) >= SNES_HEIGHT)
+                    continue;
+                temp_ctx.emit_lo = SNES_WIDTH;
+                temp_ctx.emit_hi = 0;
+
+                render_bg_scanline(bg, vline, bg_bpp[bg],
                                    &temp_ctx, SNES_WIDTH, 0);
 
                 /* Copy visible portion into main merged buffers */
@@ -3012,8 +3036,9 @@ void PPU_HOT_FUNC(ppu_render_frame_ex)(int ctx_id, int y_start, int y_end,
                  * would skip them anyway. On the overworld BG3 is usually
                  * fully blank -> the merge collapses to nothing. */
                 /* Text layer (BG3): tiles of windows pinned to the left or right edge move there. */
-                const bool anchored = (bg == 2) && eb_text_anchor_any && EB_VIEWPORT_WIDTH > SNES_WIDTH;
-                const int anchor_row = ((eff_scanline + ppu.bg_vofs[2]) >> 3) & 31;
+                const bool anchored = is_text_bg(bg) && (eb_text_anchor_any || vanch) &&
+                                      (EB_VIEWPORT_WIDTH > SNES_WIDTH || vanch);
+                const int anchor_row = ((vline + ppu.bg_vofs[bg]) >> 3) & 31;
                 const int right_shift = EB_VIEWPORT_WIDTH - SNES_WIDTH - EB_VIEWPORT_PAD_LEFT;
                 int i_lo = temp_ctx.emit_lo - src_start;
                 int i_hi = temp_ctx.emit_hi - src_start;
@@ -3050,6 +3075,8 @@ void PPU_HOT_FUNC(ppu_render_frame_ex)(int ctx_id, int y_start, int y_end,
                      * per-layer memset). Zero entries need no store — they are
                      * already zero. */
                     temp_main[sx] = 0;
+                    if (vanch && eb_text_anchor_v[anchor_row][sx >> 3] != vp)
+                        continue;
                     if (anchored) {
                         uint8_t anchor = eb_text_anchor[anchor_row][sx >> 3];
                         if (anchor == 1) dx -= EB_VIEWPORT_PAD_LEFT;
@@ -3087,6 +3114,7 @@ merge_done:
                         memset(temp_main + merged_hi, 0,
                                (SNES_WIDTH - merged_hi) * sizeof(uint32_t));
                 }
+                }   /* vp */
 
 #if EB_VIEWPORT_WIDE
                 /* Clamp mode: extend edge pixels into the border area */

@@ -126,6 +126,7 @@ void overworld_setup_vram(void) {
     ppu.bg_viewport_fill[3] = BG_VIEWPORT_CENTER; /* Mode 0 battles fill BG4 */
     ppu.sprite_x_offset = 0;
     ppu.sprite_y_offset = 0;
+    window_anchors_enabled = true;
 }
 
 /* ---- OVERWORLD_INITIALIZE (asm/overworld/initialize.asm) ---- */

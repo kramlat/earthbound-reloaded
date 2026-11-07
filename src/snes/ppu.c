@@ -4,6 +4,8 @@
 
 uint8_t eb_text_anchor[32][32];
 bool eb_text_anchor_any;
+uint8_t eb_text_anchor_v[32][32];
+bool eb_text_anchor_v_any;
 
 #ifdef EB_RUNTIME_VIEWPORT
 /* The picture size, set by the platform from the aspect ratio setting before the game starts

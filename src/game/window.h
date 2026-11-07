@@ -652,4 +652,9 @@ void inventory_get_item_name(uint16_t char_id, uint16_t window_type);
  * window's right edge. */
 void print_money_in_window(uint32_t amount);
 
+/* Corner/edge pinning of windows on a wide or tall picture (window_update_anchors). Scenes whose
+ * windows must stay centred as a set (the file select menus) switch it off; the overworld turns
+ * it back on when it sets up. */
+extern bool window_anchors_enabled;
+
 #endif /* GAME_WINDOW_H */
