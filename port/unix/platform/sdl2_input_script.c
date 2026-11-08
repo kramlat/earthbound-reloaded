@@ -1154,6 +1154,14 @@ static bool run_command(const char *cmd, const char *arg, const char *line, uint
             for (const char *c = arg; *c; c++)
                 platform_text_input_script((unsigned char)*c);
         }
+    } else if (strcmp(cmd, "flavour") == 0) {
+        /* flavour N (1-10): switch the window flavour at once, as the setup menu's preview does */
+        if (nv >= 1 && v1 >= 1 && v1 <= 10) {
+            game_state.text_flavour = (uint8_t)v1;
+            text_load_window_gfx();
+            load_character_window_palette();
+            printf("FLAVOUR %d\n", v1);
+        }
     } else if (strcmp(cmd, "money") == 0) {
         game_state.money_carried = (uint32_t)v1;
         printf("MONEY %u\n", (unsigned)game_state.money_carried);
