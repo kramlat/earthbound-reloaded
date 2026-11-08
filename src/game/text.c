@@ -1,4 +1,5 @@
 #include "game/text.h"
+#include "game/quick_use.h"
 #include "game/window.h"
 #include "game/display_text.h"
 #include "game/display_text_internal.h"  /* dt_make_child_init */
@@ -2075,7 +2076,49 @@ StepResult mode_step_psi_menu(ModeState *ms) {
     for (;;) {
         switch ((PsiMenuPhase)st->phase) {
 
+        case PS_PRESET:
+            /* LT shortcut: the user and the ability are given; run the same checks, targeting and
+             * execution as picking it from the list (the "selection" is handed over inline). */
+            st->last_ability = st->preset_psi;
+            st->char_id = st->preset_char;
+            st->action_result = 0;
+            only_one_character_with_psi = 1;
+            overworld_selected_psi_user = st->char_id;
+            st->result_ready = 1;
+            st->menu_result = st->preset_psi;
+            st->use_confirmed = 1;
+            st->phase = PS_ABILITY_RESULT;
+            continue;
+
+        case PS_REG_RESULT: {
+            /* The Use / Register choice (port addition) */
+            uint16_t choice = (uint16_t)mode_child_result();
+            close_window(WINDOW_INVENTORY_MENU);
+            set_window_focus(WINDOW_TEXT_STANDARD);
+            if (choice == 1) {                                   /* Use */
+                st->use_confirmed = 1;
+                st->result_ready = 1;
+                st->menu_result = st->pending_psi;
+                st->phase = PS_ABILITY_RESULT;
+                continue;
+            }
+            if (choice == 2) {                                   /* Register */
+                quick_use_register_psi((uint8_t)st->char_id, (uint8_t)st->pending_psi);
+                close_window(WINDOW_PSI_TARGET_COST);
+                create_window(WINDOW_TEXT_STANDARD);
+                st->action_result = 1;                           /* the menus close, as after a cast */
+                st->phase = PS_EXIT;
+                bool pushed;
+                StepResult r = menu_push_text(MSG_QUICK_REGISTER_PSI, &pushed);
+                if (pushed) return r;
+                continue;
+            }
+            st->phase = PS_ABILITY;                              /* cancelled: back to the list */
+            continue;
+        }
+
         case PS_ENTER:
+            st->use_confirmed = 0;
             st->last_ability = 0x00FF;  /* @VIRTUAL01 (0xFF = initial) */
             st->action_result = 0;
             only_one_character_with_psi = 0;
@@ -2153,6 +2196,23 @@ StepResult mode_step_psi_menu(ModeState *ms) {
                 st->phase = PS_CHAR;
                 continue;
             }
+
+            /* Use or Register (port addition): ask first, once per pick */
+            if (!st->use_confirmed) {
+                st->pending_psi = psi_selection;
+                window_set_height(create_window(WINDOW_INVENTORY_MENU), 6);   /* two rows */
+                set_focus_text_cursor(0, 0);
+                add_menu_item_no_position("Use", 1);
+                add_menu_item_no_position("Register", 2);
+                open_window_and_print_menu(1, 0);
+                set_window_focus(WINDOW_INVENTORY_MENU);
+                memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
+                g_mode_push_init.selection_menu.phase        = SM_SETUP;
+                g_mode_push_init.selection_menu.allow_cancel = 1;
+                st->phase = PS_REG_RESULT;
+                return STEP_RESULT_PUSH_INIT(GAME_MODE_SELECTION_MENU, &g_mode_push_init);
+            }
+            st->use_confirmed = 0;
 
             /* Show PSI details for the multi-PSI case (lines 91-98) */
             if (!only_one_character_with_psi)
@@ -2254,7 +2314,8 @@ StepResult mode_step_psi_menu(ModeState *ms) {
         case PS_HANDLE: {
             /* @HANDLE_RESULT (assembly lines 217-226) */
             if ((st->action_result & 0xFF) == 0) {
-                st->phase = PS_ABILITY;  /* retry ability selection */
+                /* retry ability selection (an LT shortcut just closes up) */
+                st->phase = st->preset_char ? PS_EXIT : PS_ABILITY;
                 continue;
             }
 
@@ -3009,12 +3070,12 @@ static void pm_build_item_action_menu(PauseMenuState *st) {
     /* Build Use/Give/Drop/Help menu (assembly lines 159-192).
      * ITEM_USE_MENU_STRINGS: "Use"(0), "Give"(1), "Drop"(2), "Help!"(3)
      * Userdata: Use=1, Give=2, Drop=3, Help!=4 */
-    static const char *item_action_labels[4] EB_NORELOC = {
-        "Use", "Give", "Drop", "Help!"
+    static const char *item_action_labels[5] EB_NORELOC = {
+        "Use", "Give", "Drop", "Help!", "Register"
     };
 
     set_focus_text_cursor(0, 0);
-    for (int i = start_action; i < 4; i++) {
+    for (int i = start_action; i < 5; i++) {
         add_menu_item_no_position(item_action_labels[i], i + 1);
     }
     open_window_and_print_menu(1, 0);
@@ -3158,6 +3219,18 @@ static EB_NOINLINE bool pm_action_result(PauseMenuState *st, StepResult *out) {
         return pm_item_drop(st, out);
     case 4:
         return pm_item_help(st, out);
+    case 5: {
+        /* Register: this item becomes the RT shortcut (port addition) */
+        uint16_t item_id = get_character_item(st->goods_char, st->item_slot);
+        quick_use_register_item((uint8_t)st->goods_char, (uint8_t)item_id);
+        set_current_item((uint8_t)item_id);
+        create_window(WINDOW_TEXT_STANDARD);
+        bool pushed;
+        *out = pm_push_text(st, PM_REGISTER_DONE, MSG_QUICK_REGISTER_ITEM, &pushed);
+        if (!pushed)
+            st->phase = PM_CLEANUP;
+        return pushed;
+    }
     default:
         st->phase = PM_CLEANUP;
         return false;
@@ -3349,7 +3422,33 @@ StepResult mode_step_pause_menu(ModeState *ms) {
     for (;;) {
         switch ((PauseMenuPhase)st->phase) {
         case PM_ENTER:
+            if (st->quick_kind != 0) {
+                /* LT / RT shortcut: no command menu; show HP/PP and go straight to the PSI / item */
+                disable_all_entities();
+                play_sfx(1);  /* SFX::CURSOR1 */
+                if (pm_show_hppp_money(st, PM_QUICK_RUN, &r)) return r;
+                continue;
+            }
             pm_enter(st);
+            continue;
+
+        case PM_QUICK_RUN:
+            memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
+            st->phase = PM_QUICK_DONE;
+            if (st->quick_kind == 1) {
+                g_mode_push_init.psi_menu.phase = PS_PRESET;
+                g_mode_push_init.psi_menu.preset_char = st->quick_char;
+                g_mode_push_init.psi_menu.preset_psi = st->quick_arg;
+                return STEP_RESULT_PUSH_INIT(GAME_MODE_PSI_MENU, &g_mode_push_init);
+            }
+            g_mode_push_init.use_item.phase = UI_ENTER;
+            g_mode_push_init.use_item.char_id = st->quick_char;
+            g_mode_push_init.use_item.item_slot = st->quick_arg;
+            return STEP_RESULT_PUSH_INIT(GAME_MODE_USE_ITEM, &g_mode_push_init);
+
+        case PM_QUICK_DONE:
+        case PM_REGISTER_DONE:
+            st->phase = PM_CLEANUP;
             continue;
 
         case PM_MAIN:

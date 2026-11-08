@@ -1,0 +1,12 @@
+# Authored text for the port: the LT / RT shortcuts (registered from the PSI list and the Goods
+# action menu; see game/quick_use.c). New labels, packed after the extracted dialogue.
+MSG_QUICK_REGISTER_PSI:
+  - start_new_line
+  - text: '@Registered to LT.'
+  - halt_with_prompt
+  - end_block
+MSG_QUICK_REGISTER_ITEM:
+  - start_new_line
+  - text: '@Registered to RT.'
+  - halt_with_prompt
+  - end_block

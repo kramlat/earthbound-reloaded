@@ -1,4 +1,5 @@
 #include "game/game_state.h"
+#include "game/quick_use.h"
 #include "game/battle.h"
 #include "core/memory.h"
 #include "data/assets.h"
@@ -419,12 +420,12 @@ size_t save_aux_read(int slot, size_t offset, void *dst, size_t size) {
 }
 static void save_aux_erase(int slot) {
     static const uint8_t zero[512];
-    for (size_t off = 0; off < sizeof(zero) * 2; off += sizeof(zero))
+    for (size_t off = 0; off < sizeof(zero) * 4; off += sizeof(zero))
         save_aux_write(slot, off, zero, sizeof(zero));
 }
 static void save_aux_copy(int to, int from) {
     uint8_t buf[512];
-    for (size_t off = 0; off < sizeof(buf) * 2; off += sizeof(buf)) {
+    for (size_t off = 0; off < sizeof(buf) * 4; off += sizeof(buf)) {
         if (save_aux_read(from, off, buf, sizeof(buf)) != sizeof(buf)) memset(buf, 0, sizeof(buf));
         save_aux_write(to, off, buf, sizeof(buf));
     }
@@ -494,6 +495,8 @@ bool save_game(int slot) {
             return false;
     }
 
+    quick_use_save(slot);   /* the LT / RT registrations travel with the save */
+
     /* Refresh the global version word (and pad the image to 8 KB) so the file
      * survives real EarthBound's boot integrity check / loads in snes9x. */
     return write_sram_version_word(slot);
@@ -528,6 +531,8 @@ bool load_game(int slot) {
 
     /* Port of load_game_slot.asm lines 92-93: game_state.timer → TIMER */
     core.play_timer = game_state.timer;
+
+    quick_use_load(slot);
 
     return true;
 }

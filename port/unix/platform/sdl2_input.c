@@ -25,6 +25,8 @@ static const struct { uint16_t bit; const char *name; const char *cfg; SDL_Scanc
     { PAD_Y,      "X",      "y",      SDL_SCANCODE_A      },
     { PAD_L,      "LB",     "l",      SDL_SCANCODE_Q      },
     { PAD_R,      "RB",     "r",      SDL_SCANCODE_W      },
+    { PAD_LT,     "LT",     "lt",     SDL_SCANCODE_E      },
+    { PAD_RT,     "RT",     "rt",     SDL_SCANCODE_R      },
     { PAD_START,  "Menu",   "start",  SDL_SCANCODE_RETURN },
     { PAD_SELECT, "View",   "select", SDL_SCANCODE_RSHIFT },
 };
@@ -191,6 +193,8 @@ static uint16_t gamepad_sample(void) {
     uint16_t bits = 0;
     for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++)
         if (SDL_GameControllerGetButton(pad_dev, map[i].b)) bits |= map[i].bit;
+    if (SDL_GameControllerGetAxis(pad_dev, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16000)  bits |= PAD_LT;
+    if (SDL_GameControllerGetAxis(pad_dev, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000) bits |= PAD_RT;
     int dz = deadzone_pct * 32767 / 100;
     int lx = SDL_GameControllerGetAxis(pad_dev, SDL_CONTROLLER_AXIS_LEFTX);
     int ly = SDL_GameControllerGetAxis(pad_dev, SDL_CONTROLLER_AXIS_LEFTY);

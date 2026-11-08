@@ -8,6 +8,9 @@
  *   Bit 15: B      Bit 14: Y      Bit 13: Select  Bit 12: Start
  *   Bit 11: Up     Bit 10: Down   Bit  9: Left    Bit  8: Right
  *   Bit  7: A      Bit  6: X      Bit  5: L       Bit  4: R
+ *
+ * Port additions, in the low bits the SNES joypad leaves unused: the controller's triggers.
+ *   Bit  3: LT (casts the registered PSI)   Bit  2: RT (uses the registered Goods item)
  */
 #define PAD_B      (1 << 15)
 #define PAD_Y      (1 << 14)
@@ -21,6 +24,8 @@
 #define PAD_X      (1 <<  6)
 #define PAD_L      (1 <<  5)
 #define PAD_R      (1 <<  4)
+#define PAD_LT     (1 <<  3)
+#define PAD_RT     (1 <<  2)
 
 /* Functional button groups — used throughout game logic.
  * Ports with fewer buttons should ensure at minimum:

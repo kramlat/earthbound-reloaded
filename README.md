@@ -87,6 +87,8 @@ EarthBound was designed for comfortable one-handed play — many buttons are int
 | **Select** | Same as B (one-handed play) |
 | **Start** | Start game from title screen |
 | **R** | Ring bicycle bell (cosmetic) |
+| **LT** | Cast the registered PSI (overworld; see Shortcuts below) |
+| **RT** | Use the registered Goods item (the Cell Phone until you register another) |
 
 **Minimum for hardware ports:** D-Pad + A + B is fully playable. Add X for the town map and Start for the title screen.
 
@@ -103,9 +105,15 @@ EarthBound was designed for comfortable one-handed play — many buttons are int
 | A | Y |
 | Q | L |
 | W | R |
+| E | LT (controller trigger) |
+| R | RT (controller trigger) |
 | Enter | Start |
 | Right Shift | Select |
 | Tab | Fast-forward (4x speed) |
+
+### Shortcuts: LT and RT
+
+On the overworld, **LT** casts a registered PSI and **RT** uses a registered Goods item. Register them from the menus: pick a PSI in the PSI list and choose **Register** (instead of Use), or pick a Goods item and choose **Register** in its action menu. RT starts out registered to the Cell Phone. A registration belongs to a character, so while that character is out of the party the button does nothing until they return. Registrations are kept in the save.
 
 ### Mouse and Touch (Desktop)
 

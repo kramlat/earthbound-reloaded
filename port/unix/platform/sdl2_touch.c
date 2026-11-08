@@ -35,6 +35,8 @@ static const Button buttons[] = {
     { "L", PAD_L,      -44,  -9, true,  10 },
     { "R", PAD_R,        0,  -9, true,  10 },
     { "S", PAD_START,   44,  -9, true,  10 },
+    { "LT", PAD_LT,    -88,  -9, true,  10 },
+    { "RT", PAD_RT,     88,  -9, true,  10 },
 };
 #define BUTTON_COUNT ((int)(sizeof(buttons) / sizeof(buttons[0])))
 
@@ -168,6 +170,7 @@ static const uint8_t glyph_X[7] = { 0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11 };
 static const uint8_t glyph_L[7] = { 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F };
 static const uint8_t glyph_R[7] = { 0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11 };
 static const uint8_t glyph_S[7] = { 0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E };
+static const uint8_t glyph_T[7] = { 0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04 };
 
 static const uint8_t *glyph_for(char c) {
     switch (c) {
@@ -176,6 +179,7 @@ static const uint8_t *glyph_for(char c) {
     case 'X': return glyph_X;
     case 'L': return glyph_L;
     case 'R': return glyph_R;
+    case 'T': return glyph_T;
     default:  return glyph_S;
     }
 }
@@ -218,6 +222,9 @@ void touch_draw(pixel_t *fb, int pitch) {
         button_center(i, &bx, &by);
         bool on = (held & buttons[i].pad) != 0;
         disc(fb, pitch, bx, by, buttons[i].radius, on ? lit : dark);
-        glyph(fb, pitch, bx, by, buttons[i].label[0], on ? dark : white);
+        const char *lab = buttons[i].label;
+        int n = (int)strlen(lab);
+        for (int k = 0; k < n; k++)                       /* labels are one or two letters */
+            glyph(fb, pitch, bx - (n - 1) * 3 + k * 6, by, lab[k], on ? dark : white);
     }
 }

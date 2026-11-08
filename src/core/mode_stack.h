@@ -390,6 +390,9 @@ typedef enum {
     PM_CLOSE_TEXT3,         /* give/drop tail: close the text window */
     PM_CLOSE_INV_MENU3,     /* give/drop tail: close the action menu */
     PM_CLOSE_INV3,          /* give/drop tail: close the inventory, -> PM_MAIN */
+    PM_QUICK_RUN,           /* LT/RT shortcut: HP/PP shown, push the PSI menu / USE_ITEM */
+    PM_QUICK_DONE,          /* LT/RT shortcut: it popped; close up */
+    PM_REGISTER_DONE,       /* Register: the confirmation text popped; close the menus */
 } PauseMenuPhase;
 
 typedef struct {
@@ -404,6 +407,9 @@ typedef struct {
     uint16_t goods_char;     /* 1-based character whose inventory is open */
     uint16_t item_slot;      /* 1-based selected item slot */
     uint16_t give_target;    /* 1-based give recipient */
+    uint8_t  quick_kind;     /* LT/RT shortcut: 0 = a normal pause menu, 1 = cast a PSI, 2 = use an item */
+    uint8_t  quick_char;     /* shortcut: 1-based user */
+    uint8_t  quick_arg;      /* shortcut: PSI table index / inventory slot (1-based) */
 } PauseMenuState;
 
 /* GAME_MODE_EQUIP_MENU phases. Port of open_equipment_menu() +
@@ -526,6 +532,8 @@ typedef enum {
     PS_RADE_FLUSH,      /* render_and_disable_entities split: flush a parked frame */
     PS_RADE_FINISH,     /* render_and_disable_entities split: disable tail -> PS_EXIT */
     PS_EXIT,            /* close the text window, POP the result */
+    PS_PRESET,          /* LT shortcut: user + ability given, straight to the checks */
+    PS_REG_RESULT,      /* the Use / Register choice after an ability was picked */
 } PsiMenuPhase;
 
 typedef struct {
@@ -539,6 +547,10 @@ typedef struct {
     uint16_t last_ability;     /* @VIRTUAL01: last ability selection (0xFF = initial) */
     uint16_t battle_action_id; /* selected ability's battle action */
     uint16_t action_result;    /* @LOCAL09: targeting/teleport result; 1 = PSI used */
+    uint8_t  preset_char;      /* LT shortcut: 1-based user (0 = pick from the menu) */
+    uint8_t  preset_psi;       /* LT shortcut: PSI table index */
+    uint8_t  use_confirmed;    /* the Use / Register choice was made (Use) */
+    uint16_t pending_psi;      /* the ability the Use / Register choice is about */
 } PsiMenuState;
 
 /* GAME_MODE_USE_ITEM phases. Port of overworld_use_item()

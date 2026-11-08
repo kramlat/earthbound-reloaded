@@ -34,6 +34,7 @@
 #include "game/flyover.h"
 #include "game/oval_window.h"
 #include "game/map_loader.h"
+#include "game/quick_use.h"
 #include "game/position_buffer.h"
 #include "game/inventory.h"
 #include "game/display_text_internal.h"
@@ -1504,6 +1505,13 @@ StepResult mode_step_overworld(ModeState *mst) {
                 bool mouse_check = mouse->left_pressed &&
                                    !(core.pad1_pressed & (PAD_A | PAD_CANCEL | PAD_X)) &&
                                    overworld_mouse_checktalk(mouse->x, mouse->y);
+                /* LT casts the registered PSI, RT uses the registered item (port addition) */
+                uint16_t triggers = platform_input_get_pad_new() & (PAD_LT | PAD_RT);
+                if (triggers && !(core.pad1_pressed & (PAD_A | PAD_CANCEL | PAD_X | PAD_L)) &&
+                    quick_use_prepare((triggers & PAD_LT) ? PAD_LT : PAD_RT, &g_mode_push_init)) {
+                    st->phase = OWP_POST_TELEPORT;
+                    return STEP_RESULT_PUSH_INIT(GAME_MODE_PAUSE_MENU, &g_mode_push_init);
+                }
                 if (core.pad1_pressed & PAD_A) {
                     memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
                     g_mode_push_init.pause_menu.phase = PM_ENTER;

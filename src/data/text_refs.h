@@ -2546,6 +2546,8 @@
 #define MSG_PENCIL_ERASER_DELIVERY_RESET                             0x159583u
 #define MSG_PICKY_NIGHT_HOME_ALONE                                   0x10B5A4u
 #define MSG_POKEY_NIGHT_METEORITE_SCENE                              0x10B498u
+#define MSG_QUICK_REGISTER_ITEM                                      0x17762Fu
+#define MSG_QUICK_REGISTER_PSI                                       0x17761Au
 #define MSG_RAMA_ADMIRER_AFTER_WIN                                   0x12ECBCu
 #define MSG_RAMA_ADMIRER_FOUND_POO                                   0x12EC04u
 #define MSG_RAMA_ADMIRER_NO_POO                                      0x12EC4Du

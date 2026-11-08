@@ -128,7 +128,7 @@ static inline const PlatformMouse *platform_mouse(void) { static const PlatformM
  * platform in its own config file. Slots are the 12 SNES buttons in menu order; names are the Xbox controller names
  * for the pad button each one is driven by (SNES A is the Xbox B button, and so on).
  */
-#define INPUT_SLOT_COUNT        12
+#define INPUT_SLOT_COUNT        14
 #define INPUT_DEADZONE_MIN      5     /* percent of full stick travel */
 #define INPUT_DEADZONE_MAX      60
 #define INPUT_DEADZONE_DEFAULT  25

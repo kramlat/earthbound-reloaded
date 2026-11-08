@@ -1,6 +1,7 @@
 #include "intro/file_select.h"
 #include "game/window.h"
 #include "game/ng_plus.h"
+#include "game/quick_use.h"
 #include "game/text.h"
 #include "game/game_state.h"
 #include "game/display_text.h"
@@ -2001,6 +2002,7 @@ StepResult mode_step_new_game_naming(ModeState *ms) {
     /* New Game+: the cleared game's levels, stats and non-key items replace the fresh ones. */
     ng_plus_clear_slot((int)current_save_slot - 1);
     ng_plus_apply_new_game();
+    quick_use_reset();      /* LT empty, RT = Cell Phone */
 
     /* Sync current HP/PP = max for all characters (assembly lines 538-555) */
     for (int i = 0; i < 4; i++) {

@@ -875,7 +875,7 @@ bool input_script_active(void) {
 static uint16_t parse_buttons(char *s) {
     static const struct { const char *name; uint16_t bit; } names[] = {
         {"A", PAD_A}, {"B", PAD_B}, {"X", PAD_X}, {"Y", PAD_Y},
-        {"L", PAD_L}, {"R", PAD_R}, {"START", PAD_START}, {"SELECT", PAD_SELECT},
+        {"L", PAD_L}, {"R", PAD_R}, {"LT", PAD_LT}, {"RT", PAD_RT}, {"START", PAD_START}, {"SELECT", PAD_SELECT},
         {"UP", PAD_UP}, {"DOWN", PAD_DOWN}, {"LEFT", PAD_LEFT}, {"RIGHT", PAD_RIGHT},
     };
     uint16_t pad = 0;
