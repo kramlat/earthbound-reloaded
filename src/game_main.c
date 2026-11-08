@@ -608,6 +608,13 @@ void host_request_return_to_title(void) { g_title_request = true; }
 static void return_to_title_now(void) {
     close_all_windows();
     enable_all_entities();
+    /* Forget the music the map was playing. The title screen starts its own, and a save loaded in
+     * the same area afterwards must change from it to the map's: with the old track still
+     * remembered the map music counted as already playing and the title music went on. The
+     * sector the leader was last seen in goes too: a save loaded back into the same sector would
+     * otherwise never trigger the sector music check that starts the map's music. */
+    ml.current_map_music_track = (uint16_t)-1;
+    ow.last_sector_x = ow.last_sector_y = 0xFFFF;
     dt.text_prompt_waiting_for_input = 0;
     g_mode_stack.depth = 1;
     g_mode_stack.state[0].overworld = (OverworldModeState){ .phase = OWP_BOOT_SETUP };
