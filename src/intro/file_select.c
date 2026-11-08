@@ -223,6 +223,7 @@ enum { BROWSE_NORMAL = 0, BROWSE_COPY_DEST = 1, BROWSE_RESTORE_DEST = 2, BROWSE_
 static char     slot_names[SAVE_COUNT][NAME_MAX_CHARS + 1];
 static uint8_t  slot_levels[SAVE_COUNT];
 static bool     slot_cleared[SAVE_COUNT];   /* beaten: New Game+ unlocked */
+static bool     slot_crazy[SAVE_COUNT];     /* a Crazy Mode game */
 static bool     any_cleared;
 static bool     any_crazy_unlocked;         /* a New Game+ has been finished */
 static uint16_t browse_top;      /* first slot shown (0-based) */
@@ -245,6 +246,7 @@ static void file_select_scan_saves(void) {
         slot_names[slot][0] = '\0';
         slot_levels[slot] = 0;
         slot_cleared[slot] = occupied && ng_plus_slot_cleared(slot);
+        slot_crazy[slot] = occupied && ng_plus_crazy();   /* read from the flags load_game just loaded */
         any_cleared |= slot_cleared[slot];
         any_crazy_unlocked |= slot_cleared[slot] && ng_plus_crazy_unlocked(slot);
         if (!occupied) continue;
@@ -315,8 +317,10 @@ static void browse_draw(bool show_cursor) {
         int slot = browse_top + r;
         if (slot >= SAVE_COUNT) break;
         if (save_files_present[slot])
-            snprintf(labels[r], sizeof(labels[r]), "%d: %s%s", slot + 1, slot_names[slot],
-                     slot_cleared[slot] ? " +" : "");   /* + marks a beaten game: New Game+ unlocked */
+            /* After the name: ! = a Crazy Mode game, + = a beaten game (New Game+ unlocked); !+ both */
+            snprintf(labels[r], sizeof(labels[r]), "%d: %s%s%s%s", slot + 1, slot_names[slot],
+                     slot_crazy[slot] || slot_cleared[slot] ? " " : "",
+                     slot_crazy[slot] ? "!" : "", slot_cleared[slot] ? "+" : "");
         else
             snprintf(labels[r], sizeof(labels[r]), "%d: %s", slot + 1,
                      browse_mode != BROWSE_NORMAL ? "Empty" : "Start New Game");

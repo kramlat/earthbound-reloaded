@@ -139,7 +139,7 @@ Apple Kid's **Receiver phone** (his thanks for feeding him and investing $200 in
 
 ## New Game+ and Crazy Mode
 
-- **New Game+**: finishing the credits marks the save you were playing as cleared (shown as `+` after its name in the file select) and stores a snapshot of the four heroes behind it. While a cleared save exists, the file select lists **New Game+**: pick the cleared save, then a free slot. Levels, EXP, stats and every item except key items carry over, and each cycle makes monsters 50% tougher (HP, offense, defense) and worth more.
+- **New Game+**: finishing the credits marks the save you were playing as cleared (shown as `+` after its name in the file select; a `!` is a warning that the save is a Crazy Mode (hardcore) game, and `!+` means both) and stores a snapshot of the four heroes behind it. While a cleared save exists, the file select lists **New Game+**: pick the cleared save, then a free slot. Levels, EXP, stats and every item except key items carry over, and each cycle makes monsters 50% tougher (HP, offense, defense) and worth more.
 - **Crazy Mode**: an expert difficulty, unlocked once a New Game+ has been finished. It starts from a blank slate, but monsters spawn on every attempt and are drawn from every monster in the game, so a Fourside painting or a Moonside gas pump can ambush you in Onett. It reuses the effect of the original's anti-piracy flag, with none of its crashes or save erasure. A New Game+ started from a cleared Crazy Mode save is both at once.
 
 ---
