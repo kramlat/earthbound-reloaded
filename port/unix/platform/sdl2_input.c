@@ -25,10 +25,10 @@ static const struct { uint16_t bit; const char *name; const char *cfg; SDL_Scanc
     { PAD_Y,      "X",      "y",      SDL_SCANCODE_A      },
     { PAD_L,      "LB",     "l",      SDL_SCANCODE_Q      },
     { PAD_R,      "RB",     "r",      SDL_SCANCODE_W      },
-    { PAD_LT,     "LT",     "lt",     SDL_SCANCODE_E      },
-    { PAD_RT,     "RT",     "rt",     SDL_SCANCODE_R      },
     { PAD_START,  "Menu",   "start",  SDL_SCANCODE_RETURN },
     { PAD_SELECT, "View",   "select", SDL_SCANCODE_RSHIFT },
+    { PAD_LT,     "LT",     "lt",     SDL_SCANCODE_E      },   /* the two triggers come last: slot numbers are */
+    { PAD_RT,     "RT",     "rt",     SDL_SCANCODE_R      },   /* what the settings pages refer to */
 };
 static SDL_Scancode key_bind[INPUT_SLOT_COUNT];
 static int deadzone_pct = INPUT_DEADZONE_DEFAULT;

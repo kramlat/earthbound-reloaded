@@ -65,8 +65,8 @@ static const uint16_t window_configs[][4] = {
     [0x15] = { 10, 16, 12,  8 },  /* Copy Menu (2 choices) */
     [0x16] = { 10, 16, 12,  6 },  /* Copy Menu (1 choice) */
     [0x17] = {  6, 17, 21, 10 },  /* Delete confirmation */
-    [0x18] = {  3, 14, 16, 10 },  /* Text Speed */
-    [0x19] = {  8, 15, 18,  8 },  /* Music Mode */
+    [0x18] = {  3, 14, 22, 10 },  /* Text Speed (wide enough for its title in the top border) */
+    [0x19] = { 12, 15, 20,  8 },  /* Music Mode (wide enough for its title; clear of the text-speed choices) */
     [0x1A] = {  5,  4, 14,  4 },  /* Naming Box */
     [0x1B] = { 19,  4, 13,  4 },  /* "Name This Friend" */
     [0x1C] = {  1,  9, 30, 16 },  /* Name input box */
@@ -91,7 +91,7 @@ static const uint16_t window_configs[][4] = {
     [0x2F] = {  1,  9, 30, 10 },  /* PSI description */
     [0x30] = {  1,  1, 28,  6 },  /* Battle menu (full) */
     [0x31] = { 10,  4, 20,  4 },  /* Battle target text */
-    [0x32] = { 11,  1, 20, 26 },  /* Flavour selection */
+    [0x32] = {  7,  1, 24, 22 },  /* Flavour selection (the prompt is the title in the top border) */
     [0x33] = { 22,  8,  9,  4 },  /* Single character select */
     [0x34] = {  7,  9, 18, 18 },  /* Debug menu (US only) */
     [0x35] = {  4,  2, 24, 20 },  /* Settings menu (port) */
@@ -475,6 +475,16 @@ void set_window_title(uint16_t window_id, const char *title, int max_len) {
      * RENDER_WINDOW_TITLE → RENDER_TINY_FONT_STRING). */
     if (w->title_slot > 0)
         w->title_tile_count = (uint8_t)render_title_to_vram(w->title, w->title_slot);
+}
+
+/* Draw every open window's title glyphs again. The glyphs live in VRAM tiles that reloading the
+ * window graphics (the flavour preview) overwrites. */
+void window_rerender_titles(void) {
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        WindowInfo *w = &win.windows[i];
+        if (w->active && w->title_slot > 0 && w->title[0])
+            w->title_tile_count = (uint8_t)render_title_to_vram(w->title, w->title_slot);
+    }
 }
 
 /* Mark the pool entries the open windows own. */

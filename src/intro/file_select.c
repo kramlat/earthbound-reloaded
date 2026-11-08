@@ -610,6 +610,12 @@ static int fm_submenu_build(void) {
     return -1;
 }
 
+/* Setup popups carry their prompt in the top border (the title) instead of a first line of text, and
+ * are exactly tall enough for their items (two tile rows each). */
+static void fm_fit_height(WindowInfo *w) {
+    window_set_height(w, (uint16_t)(2 * w->menu_count + 2));
+}
+
 /* Open a setup / menu window. If there is no room for it (the text layer's tile pool is shared by all
  * open windows), close the other windows and try again rather than fail: a failed build used to read as
  * "cancel" and bounced the player back to the previous dialog. */
@@ -632,11 +638,11 @@ static void text_speed_menu_display_only(uint8_t selected_speed) {
     WindowInfo *w = fm_create_window(WINDOW_FILE_SELECT_TEXT_SPEED);
     if (!w) return;
     w->menu_count = 0;
-    set_focus_text_cursor(0, 0);
-    print_string("Please select text speed.");
-    add_menu_item("Fast", 1, 0, 1);
-    add_menu_item("Medium", 2, 0, 2);
-    add_menu_item("Slow", 3, 0, 3);
+    set_window_title(WINDOW_FILE_SELECT_TEXT_SPEED, "Select text speed.", -1);
+    add_menu_item("Fast", 1, 0, 0);
+    add_menu_item("Medium", 2, 0, 1);
+    add_menu_item("Slow", 3, 0, 2);
+    fm_fit_height(w);
     print_menu_items();
 
     /* Assembly (file_select_text_speed_menu.asm:49-68): highlight with palette 6 */
@@ -648,10 +654,10 @@ static void sound_mode_menu_display_only(uint8_t selected_sound) {
     WindowInfo *w = fm_create_window(WINDOW_FILE_SELECT_MUSIC_MODE);
     if (!w) return;
     w->menu_count = 0;
-    set_focus_text_cursor(0, 0);
-    print_string("Please select sound setting.");
-    add_menu_item("Stereo", 1, 0, 1);
-    add_menu_item("Mono", 2, 0, 2);
+    set_window_title(WINDOW_FILE_SELECT_MUSIC_MODE, "Select sound setting.", -1);
+    add_menu_item("Stereo", 1, 0, 0);
+    add_menu_item("Mono", 2, 0, 1);
+    fm_fit_height(w);
     print_menu_items();
 
     /* Assembly (file_select_sound_mode_menu.asm:50-69): highlight with palette 6.
@@ -670,12 +676,12 @@ static int fm_textspeed_build(void) {
     if (!w) return 0;
     w->menu_count = 0; /* Reset for re-entry (back-navigation) */
 
-    set_focus_text_cursor(0, 0);
-    print_string("Please select text speed.");
+    set_window_title(WINDOW_FILE_SELECT_TEXT_SPEED, "Select text speed.", -1);
 
-    add_menu_item("Fast", 1, 0, 1);
-    add_menu_item("Medium", 2, 0, 2);
-    add_menu_item("Slow", 3, 0, 3);
+    add_menu_item("Fast", 1, 0, 0);
+    add_menu_item("Medium", 2, 0, 1);
+    add_menu_item("Slow", 3, 0, 2);
+    fm_fit_height(w);
 
     print_menu_items();
     /* Assembly (file_select_text_speed_menu.asm:75) clears ENABLE_WORD_WRAP
@@ -710,11 +716,11 @@ static int fm_sound_build(void) {
     if (!w) return 0;
     w->menu_count = 0; /* Reset for re-entry (back-navigation) */
 
-    set_focus_text_cursor(0, 0);
-    print_string("Please select sound setting.");
+    set_window_title(WINDOW_FILE_SELECT_MUSIC_MODE, "Select sound setting.", -1);
 
-    add_menu_item("Stereo", 1, 0, 1);
-    add_menu_item("Mono", 2, 0, 2);
+    add_menu_item("Stereo", 1, 0, 0);
+    add_menu_item("Mono", 2, 0, 1);
+    fm_fit_height(w);
 
     print_menu_items();
     return -1;
@@ -740,6 +746,7 @@ static void preview_flavour_callback(uint16_t value) {
     game_state.text_flavour = (uint8_t)value;  /* 1-indexed, matching assembly */
     text_load_window_gfx();
     load_character_window_palette();
+    window_rerender_titles();          /* the graphics reload overwrote the title glyphs */
     game_state.text_flavour = orig;
 }
 
@@ -760,19 +767,20 @@ static int fm_flavour_build(void) {
     if (!w) return 0;
     w->menu_count = 0; /* Reset for re-entry (back-navigation) */
 
-    set_focus_text_cursor(0, 0);
-    print_string("Which style of windows do you prefer?");
+    /* The prompt lives in the window's top border (the way the save list is titled), so the
+     * list starts on the first row and the window is two rows shorter. */
+    set_window_title(WINDOW_FILE_SELECT_FLAVOUR, "Which window style?", -1);
 
-    add_menu_item("Plain flavor", 1, 0, 2);
-    add_menu_item("Mint flavor", 2, 0, 3);
-    add_menu_item("Strawberry flavor", 3, 0, 4);
-    add_menu_item("Banana flavor", 4, 0, 5);
-    add_menu_item("Peanut flavor", 5, 0, 6);
-    add_menu_item("Raspberry flavor", 6, 0, 7);
-    add_menu_item("Lime flavor", 7, 0, 8);
-    add_menu_item("Grape flavor", 8, 0, 9);
-    add_menu_item("Orange flavor", 9, 0, 10);
-    add_menu_item("Chocolate flavor", 10, 0, 11);
+    add_menu_item("Plain flavor", 1, 0, 0);
+    add_menu_item("Mint flavor", 2, 0, 1);
+    add_menu_item("Strawberry flavor", 3, 0, 2);
+    add_menu_item("Banana flavor", 4, 0, 3);
+    add_menu_item("Peanut flavor", 5, 0, 4);
+    add_menu_item("Raspberry flavor", 6, 0, 5);
+    add_menu_item("Lime flavor", 7, 0, 6);
+    add_menu_item("Grape flavor", 8, 0, 7);
+    add_menu_item("Orange flavor", 9, 0, 8);
+    add_menu_item("Chocolate flavor", 10, 0, 9);
 
     /* Set cursor move callback to preview palette (asm: SET_CURSOR_MOVE_CALLBACK).
      * Set the serializable id alongside the ptr (savestate hardening, D0a). */
@@ -2136,10 +2144,11 @@ static uint16_t fm_take_result(FileMenuState *st) {
  * (platform_input_* in platform.h) and saves them to its config file. */
 static uint8_t set_key_page;      /* 0 = D-Pad + Menu/View, 1 = face and shoulder buttons */
 static int set_rebind_slot;       /* button slot waiting for a key press */
-static const uint8_t set_page_slots[2][6] = {
-    { 0, 1, 2, 3, 10, 11 },       /* D-Pad Up/Down/Left/Right, Menu, View */
-    { 5, 4, 7, 6, 8, 9 },         /* Xbox A B X Y LB RB (SNES slots B A Y X L R) */
+static const uint8_t set_page_slots[2][8] = {
+    { 0, 1, 2, 3, 10, 11 },             /* D-Pad Up/Down/Left/Right, Menu, View */
+    { 5, 4, 7, 6, 8, 9, 12, 13 },       /* Xbox A B X Y LB RB (SNES slots B A Y X L R), then LT RT */
 };
+static const uint8_t set_page_count[2] = { 6, 8 };
 static const uint8_t set_deadzones[] = { 10, 15, 20, 25, 30, 35, 40, 50 };
 #define SET_DEADZONE_COUNT ((int)sizeof(set_deadzones))
 #define SET_MAX_PADS 6
@@ -2148,8 +2157,7 @@ static WindowInfo *set_open_window(int window_id, const char *prompt) {
     WindowInfo *w = fm_create_window((uint16_t)window_id);
     if (!w) return NULL;
     w->menu_count = 0;
-    set_focus_text_cursor(0, 0);
-    print_string(prompt);
+    set_window_title((uint16_t)window_id, prompt, -1);   /* the prompt is the title in the top border */
     return w;
 }
 
@@ -2157,28 +2165,30 @@ static int fm_set_menu_build(void) {
     WindowInfo *w = set_open_window(WINDOW_SETTINGS_MENU, "Settings");
     if (!w) return 0;
     char label[40];
-    add_menu_item("Keyboard: Directions", 1, 0, 1);
-    add_menu_item("Keyboard: Buttons", 2, 0, 2);
-    add_menu_item("Gamepad", 3, 0, 3);
+    add_menu_item("Keyboard: Directions", 1, 0, 0);
+    add_menu_item("Keyboard: Buttons", 2, 0, 1);
+    add_menu_item("Gamepad", 3, 0, 2);
     snprintf(label, sizeof(label), "Stick Deadzone: %d%%", platform_input_deadzone());
-    add_menu_item(label, 4, 0, 4);
-    add_menu_item("Aspect Ratio", 6, 0, 5);
-    add_menu_item("Screen Mode", 7, 0, 6);
-    add_menu_item("Reset to Defaults", 5, 0, 7);
+    add_menu_item(label, 4, 0, 3);
+    add_menu_item("Aspect Ratio", 6, 0, 4);
+    add_menu_item("Screen Mode", 7, 0, 5);
+    add_menu_item("Reset to Defaults", 5, 0, 6);
+    fm_fit_height(w);
     print_menu_items();
     return -1;
 }
 
 static int fm_set_keys_build(void) {
-    WindowInfo *w = set_open_window(WINDOW_SETTINGS_LIST, "Select a button to rebind.");
+    WindowInfo *w = set_open_window(WINDOW_SETTINGS_LIST, "Rebind which button?");
     if (!w) return 0;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < set_page_count[set_key_page]; i++) {
         int slot = set_page_slots[set_key_page][i];
         char label[40];
         snprintf(label, sizeof(label), "%s: %s", platform_input_slot_name(slot),
                  platform_input_slot_key_name(slot));
-        add_menu_item(label, (uint16_t)(i + 1), 0, (uint16_t)(i + 1));
+        add_menu_item(label, (uint16_t)(i + 1), 0, (uint16_t)i);
     }
+    fm_fit_height(w);
     print_menu_items();
     return -1;
 }
@@ -2189,14 +2199,15 @@ static int fm_set_pad_build(void) {
     int n = platform_input_gamepad_count();
     if (n > SET_MAX_PADS) n = SET_MAX_PADS;
     if (n == 0) {
-        add_menu_item("No gamepad found", 99, 0, 1);
+        add_menu_item("No gamepad found", 99, 0, 0);
     } else {
         for (int i = 0; i < n; i++) {
             char label[MENU_LABEL_SIZE];
             snprintf(label, sizeof(label), "%s", platform_input_gamepad_name(i));
-            add_menu_item(label, (uint16_t)(i + 1), 0, (uint16_t)(i + 1));
+            add_menu_item(label, (uint16_t)(i + 1), 0, (uint16_t)i);
         }
     }
+    fm_fit_height(w);
     print_menu_items();
     int cur = platform_input_gamepad_selected();
     if (n > 0 && cur >= 0 && cur < n) highlight_menu_item(w, (uint16_t)cur, 6, true);
@@ -2204,13 +2215,14 @@ static int fm_set_pad_build(void) {
 }
 
 static int fm_set_deadzone_build(void) {
-    WindowInfo *w = set_open_window(WINDOW_SETTINGS_LIST, "Select the stick deadzone.");
+    WindowInfo *w = set_open_window(WINDOW_SETTINGS_LIST, "Select stick deadzone.");
     if (!w) return 0;
     for (int i = 0; i < SET_DEADZONE_COUNT; i++) {
         char label[16];
         snprintf(label, sizeof(label), "%d%%", set_deadzones[i]);
-        add_menu_item(label, set_deadzones[i], 0, (uint16_t)(i + 1));
+        add_menu_item(label, set_deadzones[i], 0, (uint16_t)i);
     }
+    fm_fit_height(w);
     print_menu_items();
     int cur = platform_input_deadzone();
     for (int i = 0; i < SET_DEADZONE_COUNT; i++)
@@ -2226,12 +2238,12 @@ static int fm_aspect_build(void) {
     WindowInfo *w = fm_create_window(WINDOW_DISPLAY_QUESTION);
     if (!w) return 0;
     w->menu_count = 0;
-    set_focus_text_cursor(0, 0);
-    print_string("Please select an aspect ratio.");
-    add_menu_item("4:3", 1, 0, 1);
-    add_menu_item("16:10", 2, 0, 2);
-    add_menu_item("16:9", 3, 0, 3);
-    add_menu_item("Fit window", 4, 0, 4);
+    set_window_title(WINDOW_DISPLAY_QUESTION, "Select aspect ratio.", -1);
+    add_menu_item("4:3", 1, 0, 0);
+    add_menu_item("16:10", 2, 0, 1);
+    add_menu_item("16:9", 3, 0, 2);
+    add_menu_item("Fit window", 4, 0, 3);
+    fm_fit_height(w);
     print_menu_items();
     highlight_menu_item(w, (uint16_t)platform_display_aspect(), 6, true);
     return -1;
@@ -2245,10 +2257,10 @@ static int fm_screen_build(void) {
     WindowInfo *w = fm_create_window(WINDOW_DISPLAY_QUESTION);
     if (!w) return 0;
     w->menu_count = 0;
-    set_focus_text_cursor(0, 0);
-    print_string("Please select from the following:");
-    add_menu_item("Windowed", 1, 0, 1);
-    add_menu_item("Full Screen", 2, 0, 2);
+    set_window_title(WINDOW_DISPLAY_QUESTION, "Select screen mode.", -1);
+    add_menu_item("Windowed", 1, 0, 0);
+    add_menu_item("Full Screen", 2, 0, 1);
+    fm_fit_height(w);
     print_menu_items();
     highlight_menu_item(w, platform_display_fullscreen() ? 1 : 0, 6, true);
     return -1;
