@@ -1301,7 +1301,8 @@ def _apply_table_overrides(json_path: Path, output_dir: Path, list_key: str, key
     data = json.loads(json_path.read_text())
     for entry in data[list_key]:
         entry.update(overrides.get(str(entry.get(key_field)), {}))
-    patched = output_dir / "_patched" / patched_name
+    # Beside the packed assets, not in them: the packed directory is embedded into the game.
+    patched = output_dir.parent / "patched_json" / patched_name
     patched.parent.mkdir(parents=True, exist_ok=True)
     patched.write_text(json.dumps(data, indent=2))
     return patched

@@ -68,3 +68,8 @@ _HINT_APPLEPHONE:
   - text: .
   - call_text: _HINT_KOKOMADE
   - end_block
+MSG_CELL_PHONE_TOO_DANGEROUS:
+  - start_new_line
+  - text: '@It is too dangerous to pull out your Cell Phone.'
+  - halt_with_prompt
+  - end_block

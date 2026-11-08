@@ -489,6 +489,7 @@
 #define MSG_BTL9_FMON_PYRAMID_LETHAL_ASP_I                           0x13C414u
 #define MSG_BTL9_FMON_STONEHENGE_BOSS                                0x13C4EDu
 #define MSG_BUTTERFLY_HIT                                            0x15B14Cu
+#define MSG_CELL_PHONE_TOO_DANGEROUS                                 0x1775E6u
 #define MSG_CHECK_FOUR_MANIMANI                                      0x136EBBu
 #define MSG_CHECK_MGKT_CLOCK                                         0x135A38u
 #define MSG_CHECK_MGKT_DOKAN                                         0x135C41u

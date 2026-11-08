@@ -3133,6 +3133,7 @@ static EB_NOINLINE bool bm_cycle_poll(BattleMenuState *st, StepResult *out) {
 
 /* battle_item_menu entry (@SELECT_ITEM) */
 static EB_NOINLINE bool bm_item(BattleMenuState *st, StepResult *out) {
+    close_window(WINDOW_TEXT_BATTLE);   /* the Cell Phone's "too dangerous" text, if it was shown */
     /* No items → back to the command menu */
     if (party_characters[st->char_id - 1].items[0] == 0) {
         st->phase = BM_MAIN;
@@ -3182,6 +3183,18 @@ static EB_NOINLINE bool bm_item_after(BattleMenuState *st, StepResult *out) {
 
     uint8_t user_id = bt.battle_menu_user;
     uint16_t item_id = get_character_item(user_id, bt.battle_menu_param1);
+
+    /* The Cell Phone is no use in a fight: say so and go back to the Goods list, no turn spent. */
+    if (item_id == ITEM_RECEIVER_PHONE) {
+        st->phase = BM_ITEM;
+        create_window(WINDOW_TEXT_BATTLE);              /* closed again when the Goods list reopens */
+        memset(&g_mode_push_init, 0, sizeof(g_mode_push_init));
+        if (battle_push_text(&g_mode_push_init, MSG_CELL_PHONE_TOO_DANGEROUS)) {
+            *out = STEP_RESULT_PUSH_INIT(GAME_MODE_DISPLAY_TEXT, &g_mode_push_init);
+            return true;
+        }
+        return false;
+    }
 
     const ItemConfig *item_entry = get_item_entry(item_id);
     if (!item_entry) {
