@@ -1434,8 +1434,12 @@ void update_entity_screen_positions(void) {
  *   1. OAM_CLEAR (clears OAM + priority queues)
  *   2. BUILD_ENTITY_DRAW_LIST (sorts entities, queues sprites)
  *   3. UPDATE_SCREEN (flushes queues to OAM, syncs palettes) */
+void (*screen_overlay_hook)(void);
+
 void update_screen(void) {
     render_all_priority_sprites();
+    if (screen_overlay_hook)
+        screen_overlay_hook();      /* port overlays that add sprites/palette entries (title "Reloaded") */
     sync_palettes_to_cgram();
 }
 

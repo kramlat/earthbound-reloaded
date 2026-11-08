@@ -649,6 +649,10 @@ void update_entity_screen_positions(void);
  * which are not needed in the C port. */
 void update_screen(void);
 
+/* Called by update_screen() after the entity sprites are in OAM and before the palettes are synced:
+ * a port overlay can add sprites (at ert.oam_write_index) and palette entries. NULL = none. */
+extern void (*screen_overlay_hook)(void);
+
 /* WAIT_FRAMES_WITH_UPDATES (asm/overworld/wait_frames_with_updates.asm) — "render N
  * frames" is now the run-to-completion GAME_MODE_WAIT_FRAMES (mode_step_wait_frames,
  * overworld.c); STEP_PUSH it with ModeState.wait_frames.remaining = N. */

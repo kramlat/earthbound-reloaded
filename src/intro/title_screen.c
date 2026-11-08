@@ -41,6 +41,10 @@
 #include "game_main.h"
 
 
+static void reloaded_build_gfx(void);
+static void reloaded_overlay(void);
+static uint16_t reloaded_frame;
+
 /*
  * Port of LOAD_TITLE_SCREEN_GRAPHICS (asm/intro/load_title_screen_graphics.asm).
  *
@@ -86,6 +90,112 @@ void load_title_screen_graphics(void) {
         memset(vram_dst, 0, 0x4000);
         decomp(comp_data, comp_size, vram_dst, 0x4000);
     }
+    reloaded_build_gfx();
+}
+
+
+/* ---- "Reloaded" overlay (port addition) ---------------------------------------------------------
+ * A white "Reloaded" that drops in from the top of the title screen and settles just below the
+ * EARTHBOUND logo. It is drawn with sprites: the letters are rendered into free OBJ tiles (the
+ * title's letter graphics leave the tail of the table empty) and palette group 9, and added to OAM
+ * by screen_overlay_hook after the entity sprites. Nothing is read from the ROM. */
+#define RELOADED_TILE_BASE   96          /* first free tile of OBJ name table 1 (tile 352 overall) */
+#define RELOADED_CHUNKS      6           /* 16x16 sprites across */
+#define RELOADED_WIDTH       96
+#define RELOADED_FINAL_Y     131         /* native Y of the text's top when it has settled */
+#define RELOADED_START_DELAY 90          /* frames after the title appears before it drops */
+#define RELOADED_DROP        40          /* frames the drop takes (bounce included) */
+
+static const char *const reloaded_glyph[6][7] = {
+    /* R */ { "####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#" },
+    /* e */ { ".....", ".....", ".###.", "#...#", "#####", "#....", ".###." },
+    /* l */ { ".##..", "..#..", "..#..", "..#..", "..#..", "..#..", ".###." },
+    /* o */ { ".....", ".....", ".###.", "#...#", "#...#", "#...#", ".###." },
+    /* a */ { ".....", ".....", ".###.", "....#", ".####", "#...#", ".####" },
+    /* d */ { "....#", "....#", ".####", "#...#", "#...#", "#...#", ".####" },
+};
+static const uint8_t reloaded_text[8] = { 0, 1, 2, 3, 4, 5, 1, 5 };      /* R e l o a d e d */
+
+static uint8_t reloaded_px[16][RELOADED_WIDTH];   /* 0 clear, 1 outline, 2 fill, 3 highlight */
+/* Sprite palette group 9 is loaded by the game (it shares CGRAM with the logo's 8bpp BG, so its
+ * colours cannot be changed): colours 1-5 and 14-15 are white, 6-13 black. White letters, black outline. */
+static const uint8_t reloaded_color[4] = { 0, 6, 1, 2 };
+static void reloaded_build_gfx(void) {
+    memset(reloaded_px, 0, sizeof(reloaded_px));
+    /* glyphs at 2x, 1 px of outline all round */
+    for (int g = 0; g < 8; g++) {
+        const char *const *rows = reloaded_glyph[reloaded_text[g]];
+        int x0 = 1 + g * 12;
+        for (int gy = 0; gy < 7; gy++)
+            for (int gx = 0; gx < 5; gx++) {
+                if (rows[gy][gx] != '#') continue;
+                for (int dy = 0; dy < 2; dy++)
+                    for (int dx = 0; dx < 2; dx++) {
+                        int px = x0 + gx * 2 + dx, py = 1 + gy * 2 + dy;
+                        reloaded_px[py][px] = (dy == 0 && gy == 0) ? 3 : (dy == 0 ? 3 : 2);
+                    }
+            }
+    }
+    for (int y = 0; y < 16; y++)                    /* outline: any clear pixel touching the letters */
+        for (int x = 0; x < RELOADED_WIDTH; x++) {
+            if (reloaded_px[y][x]) continue;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int yy = y + dy, xx = x + dx;
+                    if (yy >= 0 && yy < 16 && xx >= 0 && xx < RELOADED_WIDTH &&
+                        (reloaded_px[yy][xx] == 2 || reloaded_px[yy][xx] == 3))
+                        reloaded_px[y][x] = 1;
+                }
+        }
+    /* 4bpp planar tiles into OBJ name table 1: chunk c's 16x16 = tiles t, t+1, t+16, t+17 */
+    for (int c = 0; c < RELOADED_CHUNKS; c++)
+        for (int ty = 0; ty < 2; ty++)
+            for (int tx = 0; tx < 2; tx++) {
+                int tile = RELOADED_TILE_BASE + c * 2 + tx + ty * 16;
+                uint8_t *t = &ppu.vram[(0x7000 + tile * 16) * 2];
+                for (int row = 0; row < 8; row++) {
+                    uint8_t plane[4] = { 0, 0, 0, 0 };
+                    for (int col = 0; col < 8; col++) {
+                        uint8_t v = reloaded_color[reloaded_px[ty * 8 + row][c * 16 + tx * 8 + col]];
+                        for (int b = 0; b < 4; b++)
+                            plane[b] |= (uint8_t)(((v >> b) & 1) << (7 - col));
+                    }
+                    t[row * 2] = plane[0];
+                    t[row * 2 + 1] = plane[1];
+                    t[16 + row * 2] = plane[2];
+                    t[16 + row * 2 + 1] = plane[3];
+                }
+            }
+}
+
+static void reloaded_overlay(void) {
+    uint16_t f = reloaded_frame++;
+    if (f < RELOADED_START_DELAY) return;
+
+    /* drop from above the picture and bounce once */
+    int t = f - RELOADED_START_DELAY;
+    int y = RELOADED_FINAL_Y;
+    if (t < RELOADED_DROP) {
+        static const int16_t rise[RELOADED_DROP] = {
+            -147, -143, -137, -129, -119, -107, -93, -77, -59, -39, -17, 0, 0, 0, 0, 0,
+            -8, -14, -18, -20, -20, -18, -14, -8, 0, -3, -5, -6, -5, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        y += rise[t];
+    }
+    int x0 = (SNES_WIDTH - RELOADED_WIDTH) / 2;
+    for (int c = 0; c < RELOADED_CHUNKS && ert.oam_write_index < 128; c++) {
+        uint16_t oi = ert.oam_write_index++;
+        int sx = x0 + c * 16;
+        ppu.oam[oi].x = (uint8_t)(sx & 0xFF);
+        ppu.oam[oi].y = (uint8_t)((y - 1) & 0xFF);
+        ppu.oam[oi].tile = (uint8_t)(RELOADED_TILE_BASE + c * 2);
+        ppu.oam[oi].attr = 0x30 | (1 << 1) | 1;      /* priority 3, palette group 9, name table 1 */
+        ppu.oam_full_x[oi] = (int16_t)sx;
+        ppu.oam_full_y[oi] = (int16_t)(y - 1);
+        uint16_t hi = oi >> 2;
+        uint8_t pos = (uint8_t)((oi & 3) * 2);
+        ppu.oam_hi[hi] &= (uint8_t)~(0x03 << pos);
+        ppu.oam_hi[hi] |= (uint8_t)((2 | ((sx >> 8) & 1)) << pos);   /* large (16x16) */
+    }
 }
 
 /* ---- GAME_MODE_TITLE_SCREEN -----------------------------------------------
@@ -108,6 +218,7 @@ static StepResult title_fadeout_step(TitleScreenState *s) {
         ppu.bg_viewport_fill[0] = BG_VIEWPORT_CENTER;
         ppu.sprite_x_offset = 0;
         ppu.sprite_y_offset = 0;
+        screen_overlay_hook = NULL;
         ert.actionscript_state = 0;
         setup_entity_color_math();
         entity_system_init();
@@ -240,6 +351,9 @@ void title_screen_setup(uint16_t quick_mode) {
     /* ROM: LDA #11 / JSL SET_BGMODE
      * $0B = mode 3 (8bpp BG1, 4bpp BG2) + BG3 priority bit */
     ppu.bgmode = 0x0B;
+
+    reloaded_frame = 0;
+    screen_overlay_hook = reloaded_overlay;
 
     /* ROM: LDA #3 / JSL SET_OAM_SIZE
      * $03: OBJ name base at VRAM word $6000, size mode 0 (8x8/16x16) */
