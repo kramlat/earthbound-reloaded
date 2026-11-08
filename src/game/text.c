@@ -490,6 +490,14 @@ void text_load_window_gfx(void) {
            BUF_TEXT_TILES_BLOCK6_SIZE);
 }
 
+/* The HP/PP boxes' names and HP/PP labels are drawn with 2bpp palette 4 (CGRAM 16-19), whose text colour is
+ * the pink of the flavour. Pink on the purple checker is hard to read, so it is white (port change); the
+ * rest of that palette (the checker) is untouched. Called after every load of the window palettes. */
+static void whiten_hppp_text(void) {
+    ert.palettes[17] = BGR555(31, 31, 31);
+    ppu.cgram[17] = BGR555(31, 31, 31);
+}
+
 void text_load_flavour_palette(uint8_t flavour) {
     if (!flavour_palettes) {
         const uint8_t *pal_data = ASSET_DATA(ASSET_GRAPHICS_TEXT_WINDOW_FLAVOUR_PALETTES_PAL);
@@ -508,6 +516,7 @@ void text_load_flavour_palette(uint8_t flavour) {
     const uint16_t *src = flavour_palette_block(flavour);
     memcpy(ert.palettes, src, 32 * sizeof(uint16_t));
     memcpy(ppu.cgram, src, 32 * sizeof(uint16_t));
+    whiten_hppp_text();
 }
 
 /* Port of LOAD_CHARACTER_WINDOW_PALETTE (C47F87.asm).
@@ -536,6 +545,7 @@ void load_character_window_palette(void) {
             /* UNCONSCIOUS or DIAMONDIZED: load death palette (set 5, offset 320) */
             memcpy(ert.palettes, &flavour_palettes[5 * 32], 32 * sizeof(uint16_t));
             ert.palettes[0] = 0; /* force color 0 transparent (assembly line 50) */
+            whiten_hppp_text();
             ert.palette_upload_mode = PALETTE_UPLOAD_BG_ONLY;
             return;
         }
@@ -549,6 +559,7 @@ void load_character_window_palette(void) {
     memcpy(ert.palettes, flavour_palette_block(flavour), 32 * sizeof(uint16_t));
 
     ert.palettes[0] = 0; /* force color 0 transparent (assembly line 50) */
+    whiten_hppp_text();
     ert.palette_upload_mode = PALETTE_UPLOAD_BG_ONLY;
 }
 
