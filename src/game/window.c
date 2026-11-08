@@ -1085,9 +1085,18 @@ void window_update_anchors(void) {
         int count = game_state.player_controlled_party_count & 0xFF;
         int x0 = HPPP_CENTER_TILE - count * HPPP_WINDOW_WIDTH / 2;
         for (int ty = ACTIVE_HPPP_WINDOW_Y_OFFSET - 1; ty < 32; ty++)
-            for (int tx = x0; tx < x0 + count * HPPP_WINDOW_WIDTH && tx < 32; tx++)
-                if (tx >= 0)
+            for (int tx = x0; tx < x0 + count * HPPP_WINDOW_WIDTH && tx < 32; tx++) {
+                if (tx < 0) continue;
+                /* A window drawn over the boxes (the Status menu reaches down into their rows) owns
+                 * those tiles: leave them where that window put them. */
+                bool covered = false;
+                for (int i = 0; i < n && !covered; i++) {
+                    const WindowInfo *w = &win.windows[idx[i]];
+                    covered = tx >= w->x && tx < w->x + w->width && ty >= w->y && ty < w->y + w->height;
+                }
+                if (!covered)
                     eb_text_anchor_v[ty][tx] = 3;   /* flush: the row under the boxes is blank */
+            }
         eb_text_anchor_v_any = true;
     }
 }
