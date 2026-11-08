@@ -3595,6 +3595,21 @@ int16_t check_entity_collision_ahead(int16_t entity_slot) {
  * and DO_MAP_MUSIC_FADE is 0, issues a fade-out via APU port 1.
  *
  * Parameters match assembly: x_coord in A, y_coord in X. */
+/* Is (x, y) somewhere the Cell Phone has no network of ours, so calls roam? Magicant, the past
+ * (the Lost Underworld, where the party is small) and Moonside. The first two are marked in the
+ * sector attributes (low 3 bits: 3 = mini sprites, 4 = Magicant sprites). Moonside has no mark of
+ * its own: it is the block of the map east of Fourside whose sectors play the Moonside music
+ * zones (the neighbouring cave, zone 43, is not Moonside). */
+bool map_area_is_roaming(uint16_t x, uint16_t y) {
+    if (!sector_attributes_data || !per_sector_music_data) return false;
+    size_t idx = (size_t)(y / 128) * 32 + (x >> 8);
+    if (idx >= per_sector_music_size || (idx + 1) * 2 > sector_attributes_size) return false;
+    uint16_t attrs = read_u16_le(sector_attributes_data + idx * 2);
+    if ((attrs & 7) == 3 || (attrs & 7) == 4) return true;
+    uint8_t zone = per_sector_music_data[idx];
+    return x >= 6400 && y >= 4864 && y < 6400 && (zone == 44 || zone == 51 || zone == 56 || zone == 58);
+}
+
 void resolve_map_sector_music(uint16_t x_coord, uint16_t y_coord) {
     if (ow.disable_music_changes) return;
     if (!per_sector_music_data || !event_music_ptr_table || !event_music_table)

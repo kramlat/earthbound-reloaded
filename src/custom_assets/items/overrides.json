@@ -1,0 +1,4 @@
+{
+  "_comment": "Authored changes to the extracted item table, applied when it is packed (ebtools pack-all). Keys are item symbols.",
+  "RECEIVER_PHONE": { "name": "Cell Phone" }
+}

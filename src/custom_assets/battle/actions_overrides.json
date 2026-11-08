@@ -1,0 +1,8 @@
+{
+  "_comment": "Authored changes to the extracted battle action table, applied when it is packed (ebtools pack-all). Keys are action ids.",
+  "286": {
+    "_note": "Cell Phone (was the Receiver phone): its use text is now MSG_GOODS3_PHONE_RECEIVE_ONLY (original address 0xC6FFBB), which places a call, instead of the inline 'only receives calls' text.",
+    "description": null,
+    "description_pointer": "0xC6FFBB"
+  }
+}

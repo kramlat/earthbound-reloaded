@@ -2619,6 +2619,14 @@ StepResult mode_step_use_item(ModeState *ms) {
             close_window(WINDOW_INVENTORY_MENU);
             close_window(WINDOW_INVENTORY);
 
+            /* The Cell Phone's call is free except where it roams (the text reads this flag) */
+            if (st->item_id == ITEM_RECEIVER_PHONE) {
+                if (map_area_is_roaming(game_state.leader_x_coord, game_state.leader_y_coord))
+                    event_flag_set(EVENT_FLAG_CELL_PHONE_ROAMING);
+                else
+                    event_flag_clear(EVENT_FLAG_CELL_PHONE_ROAMING);
+            }
+
             /* Set attacker name from character (assembly lines 280-287) */
             set_battle_attacker_name(
                 (const char *)party_characters[st->char_id - 1].name,

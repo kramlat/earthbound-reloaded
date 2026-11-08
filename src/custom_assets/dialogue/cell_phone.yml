@@ -1,0 +1,70 @@
+# Authored text for the port (not taken from the ROM). Labels listed here replace the same
+# label in the extracted dialogue when it is packed (ebtools pack-all); labels that exist nowhere
+# else are new and are packed after the extracted dialogue.
+#
+# Apple Kid's "Receiver phone" (his thanks for feeding him and investing $200 in him) becomes the
+# "Cell Phone": it still receives the important calls, and using it from Goods now places calls
+# like a phone booth does. Calls are free, except where there is no network of ours: Magicant,
+# the past (the Lost Underworld) and Moonside are roaming and cost $1 (the game sets the
+# UNKNOWN_1010 flag, see phone_is_roaming() in overworld_interaction.c, before the text runs).
+# The item's name is changed by src/custom_assets/items/overrides.json; the label
+# MSG_GOODS3_PHONE_RECEIVE_ONLY keeps its old name because it is the use text of the phone's
+# battle action (see battle/actions_overrides.json).
+MSG_GOODS3_PHONE_RECEIVE_ONLY:
+  - start_new_line
+  - copy_to_argmem: 0
+  - text: '@'
+  - print_char_name: 0
+  - text: ' took out the Cell Phone.'
+  - halt_with_prompt
+  - line_break
+  - jump_if_flag_set:
+      flag: UNKNOWN_1010
+      dest: _CELL_PHONE_ROAMING
+  - play_sound: PHONE_ANSWERED
+  - call_text: MSG_SHOP3_PHONE_BOOTH
+  - end_block
+_CELL_PHONE_ROAMING:
+  - show_wallet_window
+  - have_enough_money: 1
+  - jump_if_true: _CELL_PHONE_NO_MONEY
+  - text: '@Roaming!  This call costs $1.'
+  - halt_with_prompt
+  - line_break
+  - take_from_wallet: 1
+  - show_wallet_window
+  - play_sound: PHONE_ANSWERED
+  - call_text: MSG_SHOP3_PHONE_BOOTH_PAID
+  - end_block
+_CELL_PHONE_NO_MONEY:
+  - text: '@(You are roaming here.  A call costs $1.)'
+  - halt_without_prompt
+  - end_block
+MSG_EXPL_RECEIVER_PHONE:
+  - start_new_line
+  - text: ' <'
+  - print_item_name: RECEIVER_PHONE
+  - text: '>'
+  - halt_with_prompt
+  - line_break
+  - text: '@Apple Kid''s invention.'
+  - halt_with_prompt
+  - line_break
+  - text: '@Now, you can receive important calls,'
+  - halt_with_prompt
+  - line_break
+  - text: '@and make calls of your own from anywhere.'
+  - halt_without_prompt
+  - end_block
+_HINT_APPLEPHONE:
+  - text: '@You got a call from Apple Kid on your Cell Phone?'
+  - halt_with_prompt
+  - line_break
+  - text: '@What are you doing here, so far away from his home?'
+  - halt_with_prompt
+  - line_break
+  - text: '@I can''t give you any hints, but I''ll keep your $'
+  - print_number: 0
+  - text: .
+  - call_text: _HINT_KOKOMADE
+  - end_block

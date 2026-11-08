@@ -123,6 +123,12 @@ Windows follow the aspect ratio (4:3, 16:10, 16:9 or fit-to-window): corner menu
 
 ---
 
+## Cell Phone
+
+Apple Kid's **Receiver phone** (his thanks for feeding him and investing $200 in him) is now the **Cell Phone**. It still receives the important calls, and using it from Goods now opens the same Call menu as a phone booth (Dad, Mom, Escargo Express...) from anywhere. Calls are free except where there is no network of ours: **Magicant, the past (the Lost Underworld) and Moonside are roaming and cost $1** (refunded if you hang up without calling). The changes are authored in `src/custom_assets/` (dialogue, item and battle-action overrides applied by `ebtools pack-all`; dialogue labels that exist nowhere else are added as new), so they survive re-extracting the ROM data.
+
+---
+
 ## New Game+ and Crazy Mode
 
 - **New Game+**: finishing the credits marks the save you were playing as cleared (shown as `+` after its name in the file select) and stores a snapshot of the four heroes behind it. While a cleared save exists, the file select lists **New Game+**: pick the cleared save, then a free slot. Levels, EXP, stats and every item except key items carry over, and each cycle makes monsters 50% tougher (HP, offense, defense) and worth more.

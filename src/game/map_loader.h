@@ -238,6 +238,9 @@ extern MapLoaderState ml;
  * Port of RESOLVE_MAP_SECTOR_MUSIC (asm/audio/resolve_map_sector_music.asm). */
 void resolve_map_sector_music(uint16_t x_coord, uint16_t y_coord);
 
+/* Is this spot roaming for the Cell Phone (Magicant, the past, Moonside)? */
+bool map_area_is_roaming(uint16_t x, uint16_t y);
+
 /* Get the music track at the leader's position.
  * Port of GET_MAP_MUSIC_AT_LEADER (asm/audio/get_map_music_at_leader.asm). */
 uint16_t get_map_music_at_leader(void);

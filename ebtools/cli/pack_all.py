@@ -893,15 +893,26 @@ def _pack_dialogue(
     flat_label_offsets: dict[str, int] = {}
     global_byte_pos = 0
 
+    # Labels an authored override file lists that no extracted file defines are new: they are
+    # packed after the extracted dialogue (a script can then jump or call to them).
+    extracted_labels: set[str] = set()
+    loaded: list[tuple[Path, dict[str, list[dict]]]] = []
     for yaml_file in yaml_files:
         messages = deserialize_dialogue_file(yaml_file.read_text())
+        extracted_labels.update(messages)
+        loaded.append((yaml_file, messages))
+    new_labels = {label: ops for label, ops in overrides.items() if label not in extracted_labels}
+    if new_labels:
+        loaded.append(((overrides_dir or dialogue_dir) / "(authored labels)", new_labels))
+
+    for yaml_file, messages in loaded:
         for label in messages:
             if label in overrides:
                 messages[label] = overrides[label]
         all_dialogue.append((yaml_file, messages))
 
         # Dummy offsets for size measurement (LABEL args always compile to 4 bytes)
-        dummy_offsets = {**original_label_addrs, **dict.fromkeys(messages, 0)}
+        dummy_offsets = {**original_label_addrs, **dict.fromkeys(messages, 0), **dict.fromkeys(new_labels, 0)}
         for label, ops in messages.items():
             flat_label_offsets[label] = dialogue_blob_base + global_byte_pos
             try:
@@ -1276,9 +1287,34 @@ def _generate_text_refs_header(
 # --- Individual pack helpers ---
 
 
+def _apply_table_overrides(json_path: Path, output_dir: Path, list_key: str, key_field: str,
+                           override_rel: str, patched_name: str) -> Path:
+    """Apply an authored override file (src/custom_assets/<override_rel>: entry key -> fields to
+    replace) to an extracted JSON table. Returns the path to pack: json_path itself, or a patched
+    copy when the override file exists."""
+    import json
+
+    override_path = json_path.parent.parent.parent / "custom_assets" / override_rel
+    if not override_path.exists():
+        return json_path
+    overrides = {str(k): v for k, v in json.loads(override_path.read_text()).items() if not k.startswith("_")}
+    data = json.loads(json_path.read_text())
+    for entry in data[list_key]:
+        entry.update(overrides.get(str(entry.get(key_field)), {}))
+    patched = output_dir / "_patched" / patched_name
+    patched.parent.mkdir(parents=True, exist_ok=True)
+    patched.write_text(json.dumps(data, indent=2))
+    return patched
+
+
+def _apply_item_overrides(json_path: Path, output_dir: Path) -> Path:
+    return _apply_table_overrides(json_path, output_dir, "items", "symbol", "items/overrides.json", "items.json")
+
+
 def _pack_items(json_path: Path, output_dir: Path, *, doc, string_table=None, addr_remap=None) -> None:
     from ebtools.parsers.item import pack_items
 
+    json_path = _apply_item_overrides(json_path, output_dir)
     pack_items(
         json_path,
         doc.textTable,
@@ -1309,6 +1345,10 @@ def _pack_npcs(json_path: Path, output_dir: Path, *, common_data, addr_remap=Non
 
 def _pack_battle_actions(json_path: Path, output_dir: Path, *, string_table=None, addr_remap=None) -> None:
     from ebtools.parsers.battle_action import pack_battle_actions
+
+    json_path = _apply_table_overrides(
+        json_path, output_dir, "actions", "id", "battle/actions_overrides.json", "battle_actions.json"
+    )
 
     pack_battle_actions(
         json_path, output_dir / "data" / "battle_action_table.bin", string_table=string_table, addr_remap=addr_remap

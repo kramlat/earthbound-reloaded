@@ -23,6 +23,7 @@
 #define EVENT_FLAG_NESS_PAJAMA    749  /* FLG_MYHOME_NES_CHANGE */
 #define EVENT_FLAG_BUNBUN         18  /* FLG_BUNBUN — BuzzBuzz in party */
 #define EVENT_FLAG_MONSTER_OFF    11  /* FLG_SYS_MONSTER_OFF */
+#define EVENT_FLAG_CELL_PHONE_ROAMING 1010  /* UNKNOWN_1010: set while the Cell Phone is used where it roams */
 #define EVENT_FLAG_DIS_2H_PAPA  775  /* FLG_SYS_DIS_2H_PAPA — disables dad phone */
 #define EVENT_FLAG_WIN_GIEGU     73  /* FLG_WIN_GIEGU — defeated Giygas */
 #define EVENT_FLAG_DISABLE_TELEPORT 754 /* FLG_SYS_DISTLPT — disable PSI Teleport */
