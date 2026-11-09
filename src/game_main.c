@@ -406,7 +406,7 @@ void host_process_frame(void) {
          * keep game logic at real-time speed. */
         uint64_t now = platform_timer_ticks();
         uint64_t tps = platform_timer_ticks_per_sec();
-        uint64_t frame_period = tps / TARGET_FPS;
+        uint64_t frame_period = platform_audio_adjust_frame_period(tps / TARGET_FPS);
         int64_t time_debt = (int64_t)(now - frame_deadline);
 
         if (time_debt > (int64_t)frame_period && consecutive_skips < EB_MAX_FRAME_SKIP) {
@@ -528,6 +528,7 @@ void host_process_frame(void) {
 
     /* Process sound effect queue (once per frame, matching NMI handler) */
     audio_process_sfx_queue();
+    platform_audio_produce_frame();   /* this frame's 534 samples, in step with the video */
 
     /* Execute per-frame IRQ callback (port of EXECUTE_IRQ_CALLBACK).
      * Normally process_overworld_tasks; credits swaps to credits_scroll_frame.

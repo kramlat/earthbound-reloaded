@@ -352,12 +352,21 @@ bool platform_video_init(void) {
     );
     if (!window) return false;
 
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     renderer = SDL_CreateRenderer(window, -1,
-        SDL_RENDERER_ACCELERATED);
+        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!renderer)                         /* a driver that refuses the flag: retry plain, then ask at run time */
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) return false;
 
-    /* Enable VSync — use runtime call for reliable driver support */
+    /* Enable VSync — flag above, and the runtime call for drivers that only honour that one */
     SDL_RenderSetVSync(renderer, 1);
+    {
+        SDL_RendererInfo info;
+        if (SDL_GetRendererInfo(renderer, &info) == 0 && !(info.flags & SDL_RENDERER_PRESENTVSYNC))
+            fprintf(stderr, "video: this renderer (%s) did not enable vsync; frames are paced by timer only\n",
+                    info.name);
+    }
 
     /* Integer scaling for crisp pixels */
     SDL_RenderSetLogicalSize(renderer, EB_VIEWPORT_WIDTH, EB_VIEWPORT_HEIGHT);

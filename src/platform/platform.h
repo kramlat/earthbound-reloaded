@@ -193,6 +193,15 @@ bool platform_audio_init(void);
 void platform_audio_shutdown(void);
 void platform_audio_lock(void);                       /* acquire audio mutex (pairs with unlock) */
 void platform_audio_unlock(void);
+/* Desktop: the game loop runs the sound chip one frame per video frame into a ring buffer and trims the
+ * frame time by up to half a percent to keep the buffer level, so audio cannot drift from video. */
+#ifdef EB_HAS_INPUT_SETTINGS
+void platform_audio_produce_frame(void);
+uint64_t platform_audio_adjust_frame_period(uint64_t period);
+#else
+static inline void platform_audio_produce_frame(void) {}
+static inline uint64_t platform_audio_adjust_frame_period(uint64_t period) { return period; }
+#endif
 
 /*
  * Save data — persistent storage
