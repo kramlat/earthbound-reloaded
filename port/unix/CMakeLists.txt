@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(earthbound C)
+project(earthbound C CXX)
 set(CMAKE_C_STANDARD 11)
 
 # Emit compile_commands.json so clangd/IDEs resolve include paths and types.
@@ -78,4 +78,39 @@ if(_SANITIZERS)
     list(JOIN _SANITIZERS "," _SANITIZER_FLAGS)
     target_compile_options(earthbound PRIVATE -fsanitize=${_SANITIZER_FLAGS} -fno-omit-frame-pointer)
     target_link_options(earthbound PRIVATE -fsanitize=${_SANITIZER_FLAGS})
+endif()
+
+# ---- Qt host (earthbound-qt): Qt window, Vulkan / OpenGL / CPU drawing, Qt audio sink ----
+# Same game library and the same SDL-backed input, files, saves and timer; only the window, the
+# picture and the sound are Qt's (see port/qt/). EB_DRAWING=vulkan|opengl|cpu picks the drawing.
+option(EB_QT_HOST "Build the Qt host (earthbound-qt) when Qt6 is available" ON)
+if(EB_QT_HOST)
+    find_package(Qt6 QUIET COMPONENTS Widgets Multimedia ShaderTools GuiPrivate)
+    if(Qt6_FOUND)
+        set(QT_NO_PRIVATE_MODULE_WARNING ON)   # QRhi is semi-public since Qt 6.6
+        set(CMAKE_AUTOMOC OFF)
+        set(QT_SOURCES
+            ${CMAKE_CURRENT_SOURCE_DIR}/../qt/qt_video.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../qt/qt_picture.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../qt/qt_audio.cpp)
+        set(QT_PLATFORM_SOURCES ${PLATFORM_SOURCES})
+        list(FILTER QT_PLATFORM_SOURCES EXCLUDE REGEX "sdl2_(video|audio)\\.c$")
+        add_executable(earthbound-qt main.c ${QT_PLATFORM_SOURCES} ${QT_SOURCES})
+        qt_add_shaders(earthbound-qt "eb_shaders" PREFIX "/eb/shaders"
+                       BASE "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders"
+                       FILES "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders/picture.vert"
+                             "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders/picture.frag")
+        target_compile_definitions(earthbound-qt PRIVATE EB_QT_HOST=1)
+        target_include_directories(earthbound-qt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../qt ${SDL2_INCLUDE_DIRS})
+        target_link_libraries(earthbound-qt PRIVATE earthbound_game Qt6::Widgets Qt6::Multimedia Qt6::GuiPrivate)
+        if(TARGET SDL2::SDL2)
+            target_link_libraries(earthbound-qt PRIVATE SDL2::SDL2)
+        else()
+            target_link_libraries(earthbound-qt PRIVATE ${SDL2_LIBRARIES})
+            target_link_directories(earthbound-qt PRIVATE ${SDL2_LIBRARY_DIRS})
+        endif()
+        set_target_properties(earthbound-qt PROPERTIES CXX_STANDARD 17)
+    else()
+        message(STATUS "Qt6 (Widgets, Multimedia, ShaderTools) not found: earthbound-qt is not built")
+    endif()
 endif()

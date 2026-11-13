@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,9 @@ void record_start_audio(void);
 void record_set_paused(bool paused);
 bool record_active(void);
 #include "verify/verify.h"
+#ifdef EB_QT_HOST
+#include "qt_host.h"
+#endif
 
 /* Cleanup handler registered with atexit() — runs on any exit() call. */
 static void platform_cleanup(void) {
@@ -36,6 +40,9 @@ static void platform_cleanup(void) {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef EB_QT_HOST
+    qt_host_set_args(argc, argv);
+#endif
     const char *verify_rom_path = NULL;
     bool savestate_selftest = false;
     const char *coldload_prefix = NULL;
@@ -103,12 +110,17 @@ int main(int argc, char *argv[]) {
 
     /* Initialize SDL */
     uint32_t sdl_flags = SDL_INIT_TIMER;
+#ifdef EB_QT_HOST
+    /* Qt owns the window and the sound; SDL stays for its event queue, timer and game controllers */
+    sdl_flags |= SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER;
+#else
     if (!platform_headless) {
         sdl_flags |= SDL_INIT_VIDEO;
 #ifdef EB_ENABLE_AUDIO
         sdl_flags |= SDL_INIT_AUDIO;
 #endif
     }
+#endif
     if (SDL_Init(sdl_flags) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
@@ -186,5 +198,12 @@ int main(int argc, char *argv[]) {
     verify_shutdown();
 #endif
 
+#ifdef EB_QT_HOST
+    /* Qt Multimedia's exit-time destructors crash once the platform plugin is gone: shut down by
+     * hand and leave without running them. */
+    platform_cleanup();
+    fflush(NULL);
+    _exit(0);
+#endif
     return 0;
 }

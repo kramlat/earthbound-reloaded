@@ -1,3 +1,6 @@
+#ifdef EB_QT_HOST
+#include "qt_host.h"
+#endif
 #include "platform/platform.h"
 #include "sdl2_touch.h"
 #include "include/pad.h"
@@ -267,6 +270,9 @@ void platform_input_poll(void) {
 
     pad_prev = pad_state;
 
+#ifdef EB_QT_HOST
+    qt_host_pump();     /* Qt's window events become SDL events below */
+#endif
     while (SDL_PollEvent(&event)) {
         if (touch_handle_event(&event))
             continue;
