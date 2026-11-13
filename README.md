@@ -144,15 +144,16 @@ Apple Kid's **Receiver phone** (his thanks for feeding him and investing $200 in
 
 ---
 
-## Qt host (earthbound-qt)
+## The Qt host (default) and the legacy SDL build
 
-When Qt 6 (Widgets, Multimedia, ShaderTools, GuiPrivate) is installed, the desktop build also produces `earthbound-qt`: the same game, input, saves and settings as the SDL build, with a Qt window, picture and sound, brought in line with the Sonic ports.
+`earthbound` is the Qt build whenever Qt 6 (Widgets, Multimedia, ShaderTools, GuiPrivate) is installed; the old SDL host is still built beside it as `earthbound-legacy` and is deprecated. Both share the game, input, saves and settings. Without Qt, the SDL build is built under the plain `earthbound` name.
 
 - **Drawing:** Vulkan first, OpenGL where Vulkan will not start, QPainter on the CPU as the last resort (`EB_DRAWING=vulkan|opengl|cpu` picks one). The picture is drawn through Qt's RHI as one nearest-sampled texture, fitted to the window with its aspect kept.
 - **Sound:** a `QAudioSink` in push mode, fed by the game loop once per frame (534 samples at 32040 Hz). The sink's fill level paces the frame time (at most half a percent either way), so the audio can neither run dry nor fall behind the picture. A full buffer drops a slice instead of blocking.
 - **Vsync:** on by default; `EB_QT_VSYNC=0` turns it off.
-- **Not in the Qt host yet:** the smooth camera (`--smooth-camera`) and the scripted-playtest recorder's windowed capture; the SDL build (`earthbound`) stays the playtest harness binary.
+- **Only in `earthbound-legacy` for now:** the smooth camera (`--smooth-camera`) and the windowed smooth-camera capture.
 - `EB_QT_GRAB=FRAME:PATH` saves what the window shows at that frame, for checking a drawing mode without a screenshot tool.
+- `--headless` needs no window in either build, so the playtest harness runs on `earthbound`.
 
 ## Debug Hotkeys
 

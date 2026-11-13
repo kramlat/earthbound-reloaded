@@ -43,24 +43,24 @@ endif()
 # link. GLOB_RECURSE + CONFIGURE_DEPENDS works there and matches src/CMakeLists.txt.
 # platform/ has no subdirectories, so this is equivalent to a flat glob.
 file(GLOB_RECURSE PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/platform/*.c")
-add_executable(earthbound main.c ${PLATFORM_SOURCES})
+add_executable(earthbound-legacy main.c ${PLATFORM_SOURCES})
 
-target_link_libraries(earthbound earthbound_game)
+target_link_libraries(earthbound-legacy earthbound_game)
 
 if(TARGET SDL2::SDL2)
-    target_link_libraries(earthbound SDL2::SDL2)
+    target_link_libraries(earthbound-legacy SDL2::SDL2)
 else()
-    target_include_directories(earthbound PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(earthbound ${SDL2_LIBRARIES})
-    target_link_directories(earthbound PRIVATE ${SDL2_LIBRARY_DIRS})
+    target_include_directories(earthbound-legacy PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_link_libraries(earthbound-legacy ${SDL2_LIBRARIES})
+    target_link_directories(earthbound-legacy PRIVATE ${SDL2_LIBRARY_DIRS})
 endif()
 
 # Platform code needs SDL2 headers and game library headers (inherited via PUBLIC)
-target_include_directories(earthbound PRIVATE
+target_include_directories(earthbound-legacy PRIVATE
     ${SDL2_INCLUDE_DIRS}
 )
 
-eb_target_warnings(earthbound)
+eb_target_warnings(earthbound-legacy)
 
 # Sanitizer support
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
@@ -76,14 +76,15 @@ endif()
 
 if(_SANITIZERS)
     list(JOIN _SANITIZERS "," _SANITIZER_FLAGS)
-    target_compile_options(earthbound PRIVATE -fsanitize=${_SANITIZER_FLAGS} -fno-omit-frame-pointer)
-    target_link_options(earthbound PRIVATE -fsanitize=${_SANITIZER_FLAGS})
+    target_compile_options(earthbound-legacy PRIVATE -fsanitize=${_SANITIZER_FLAGS} -fno-omit-frame-pointer)
+    target_link_options(earthbound-legacy PRIVATE -fsanitize=${_SANITIZER_FLAGS})
 endif()
 
-# ---- Qt host (earthbound-qt): Qt window, Vulkan / OpenGL / CPU drawing, Qt audio sink ----
+# The SDL host above is the legacy one (earthbound-legacy); the Qt host is the default.
+# ---- The default host (earthbound): Qt window, Vulkan / OpenGL / CPU drawing, Qt audio sink ----
 # Same game library and the same SDL-backed input, files, saves and timer; only the window, the
 # picture and the sound are Qt's (see port/qt/). EB_DRAWING=vulkan|opengl|cpu picks the drawing.
-option(EB_QT_HOST "Build the Qt host (earthbound-qt) when Qt6 is available" ON)
+option(EB_QT_HOST "Build the Qt host (earthbound) when Qt6 is available" ON)
 if(EB_QT_HOST)
     find_package(Qt6 QUIET COMPONENTS Widgets Multimedia ShaderTools GuiPrivate)
     if(Qt6_FOUND)
@@ -95,22 +96,26 @@ if(EB_QT_HOST)
             ${CMAKE_CURRENT_SOURCE_DIR}/../qt/qt_audio.cpp)
         set(QT_PLATFORM_SOURCES ${PLATFORM_SOURCES})
         list(FILTER QT_PLATFORM_SOURCES EXCLUDE REGEX "sdl2_(video|audio)\\.c$")
-        add_executable(earthbound-qt main.c ${QT_PLATFORM_SOURCES} ${QT_SOURCES})
-        qt_add_shaders(earthbound-qt "eb_shaders" PREFIX "/eb/shaders"
+        add_executable(earthbound main.c ${QT_PLATFORM_SOURCES} ${QT_SOURCES})
+        qt_add_shaders(earthbound "eb_shaders" PREFIX "/eb/shaders"
                        BASE "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders"
                        FILES "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders/picture.vert"
                              "${CMAKE_CURRENT_SOURCE_DIR}/../qt/shaders/picture.frag")
-        target_compile_definitions(earthbound-qt PRIVATE EB_QT_HOST=1)
-        target_include_directories(earthbound-qt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../qt ${SDL2_INCLUDE_DIRS})
-        target_link_libraries(earthbound-qt PRIVATE earthbound_game Qt6::Widgets Qt6::Multimedia Qt6::GuiPrivate)
+        target_compile_definitions(earthbound PRIVATE EB_QT_HOST=1)
+        target_include_directories(earthbound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../qt ${SDL2_INCLUDE_DIRS})
+        target_link_libraries(earthbound PRIVATE earthbound_game Qt6::Widgets Qt6::Multimedia Qt6::GuiPrivate)
         if(TARGET SDL2::SDL2)
-            target_link_libraries(earthbound-qt PRIVATE SDL2::SDL2)
+            target_link_libraries(earthbound PRIVATE SDL2::SDL2)
         else()
-            target_link_libraries(earthbound-qt PRIVATE ${SDL2_LIBRARIES})
-            target_link_directories(earthbound-qt PRIVATE ${SDL2_LIBRARY_DIRS})
+            target_link_libraries(earthbound PRIVATE ${SDL2_LIBRARIES})
+            target_link_directories(earthbound PRIVATE ${SDL2_LIBRARY_DIRS})
         endif()
-        set_target_properties(earthbound-qt PROPERTIES CXX_STANDARD 17)
+        set_target_properties(earthbound PROPERTIES CXX_STANDARD 17)
     else()
-        message(STATUS "Qt6 (Widgets, Multimedia, ShaderTools) not found: earthbound-qt is not built")
+        message(STATUS "Qt6 (Widgets, Multimedia, ShaderTools) not found: the SDL build is the only host")
     endif()
+endif()
+# Without the Qt host the SDL build is the game, under the plain name.
+if(NOT TARGET earthbound)
+    set_target_properties(earthbound-legacy PROPERTIES OUTPUT_NAME earthbound)
 endif()
