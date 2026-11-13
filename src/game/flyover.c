@@ -17,6 +17,8 @@
  */
 
 #include "game/flyover.h"
+#include "game/window.h"
+void window_update_anchors(void);
 #include "core/mode_stack.h"
 #include "game/display_text.h"
 #include "game/text.h"
@@ -280,6 +282,10 @@ static void set_bg3_vram_location(uint16_t tilemap_size, uint16_t tilemap_base,
  * for the callroutine-context caller (play_flyover_script_prepare), which can't
  * park (disable_actionscript is set in a callroutine). */
 static void flyover_init_screen_body(void) {
+    /* The flyover text owns the whole text layer: no window edge pinning (stale HP/PP rows
+     * would otherwise shift part of the scrolling text). Re-enabled in undraw_flyover_text. */
+    window_anchors_enabled = false;
+    window_update_anchors();
     /* SET_BG3_VRAM_LOCATION(NORMAL, TEXT_LAYER_TILEMAP=0x7C00, TEXT_LAYER_TILES=0x6000) */
     set_bg3_vram_location(0, VRAM_TEXT_LAYER_TILEMAP, VRAM_TEXT_LAYER_TILES);
 
@@ -482,6 +488,8 @@ static uint16_t flyover_advance_text_line(uint16_t accumulator) {
  * Restores the normal BG3 text layer configuration after flyover mode.
  * ====================================================================== */
 void undraw_flyover_text(void) {
+    window_anchors_enabled = true;
+    window_update_anchors();
     /* SET_BG3_VRAM_LOCATION(NORMAL, 0x7C00, 0x6000) — same as init */
     set_bg3_vram_location(0, VRAM_TEXT_LAYER_TILEMAP, VRAM_TEXT_LAYER_TILES);
 

@@ -287,6 +287,8 @@ void window_set_height(WindowInfo *w, uint16_t height) {
     memset(w->content_tilemap, 0, w->content_tilemap_size * sizeof(uint16_t));
 }
 
+void window_update_anchors(void);
+
 void close_window(uint16_t window_id) {
     if (window_id == WINDOW_ID_NONE) return;
     if (text_trace_hook)
@@ -350,6 +352,7 @@ void close_window(uint16_t window_id) {
             clear_vwf_indent_new_line();
             /* Reset VWF state (assembly line 261: JSL RESET_VWF_TEXT_STATE) */
             vwf_init();
+            window_update_anchors();
             return;
         }
     }
@@ -399,6 +402,7 @@ void close_all_windows(void) {
     init_used_bg2_tile_map();
 
     clear_vwf_indent_new_line();
+    window_update_anchors();
 }
 
 void close_focus_window(void) {
