@@ -27,6 +27,7 @@
 extern "C" {
 #include "platform/platform.h"
 #include "snes/ppu.h"
+#include "game/smooth_camera.h"
 }
 #include "qt_host.h"
 #include "qt_picture.h"
@@ -54,6 +55,16 @@ char **g_argv = g_default_argv;
 bool g_vsync = true;
 
 pixel_t g_fb[EB_VIEWPORT_MAX_WIDTH * EB_VIEWPORT_MAX_HEIGHT];   /* the frame being drawn, and the last one for dumps */
+/* Smooth camera (presentation only; see game/smooth_camera.h): an eligible frame is rendered twice,
+ * once normally (which also records which pixels the party's sprites won) and once with the party's
+ * OAM entries parked off-screen (scenery only). The picture surface draws the scenery shifted by the
+ * leader's sub-pixel fraction, rounded to whole screen pixels, with the party's pixels unshifted on top. */
+pixel_t g_scenery[EB_VIEWPORT_MAX_WIDTH * EB_VIEWPORT_MAX_HEIGHT];
+uint8_t g_party_mask[EB_VIEWPORT_MAX_WIDTH * EB_VIEWPORT_MAX_HEIGHT];
+bool g_smooth_pending;
+uint16_t g_smooth_frac_x, g_smooth_frac_y;
+scanline_stamp_cb_t g_stamp_cb;
+
 QImage g_image[2];
 int g_image_next;
 uint32_t g_lut[65536];                                          /* BGR565 -> RGBA8888 bytes */
@@ -260,6 +271,53 @@ void qt_host_pump(void) {
 
 const pixel_t *video_last_frame(void) { return g_fb; }
 
+static void SceneryScanline(int y, const pixel_t *pixels) {
+    memcpy(&g_scenery[y * eb_viewport_width], pixels, size_t(eb_viewport_width) * sizeof(pixel_t));
+}
+static void StampedSend(int y, const pixel_t *pixels) {
+    g_stamp_cb(y, const_cast<pixel_t *>(pixels));
+    platform_video_send_scanline(y, pixels);
+}
+static void StampedScenery(int y, const pixel_t *pixels) {
+    g_stamp_cb(y, const_cast<pixel_t *>(pixels));
+    SceneryScanline(y, pixels);
+}
+
+/* Replaces the library's default (src/platform/platform_render.c). With the smooth camera off this is
+ * exactly the default sequence. */
+void platform_render_frame(scanline_stamp_cb_t fps_overlay_cb) {
+    static SmoothCameraFrame sf;
+    g_stamp_cb = fps_overlay_cb;
+    scanline_callback_t send = fps_overlay_cb ? StampedSend : platform_video_send_scanline;
+
+    g_smooth_pending = smooth_camera_enabled && g_window &&
+                       g_window->surface()->scaleFor(QSize(eb_viewport_width, eb_viewport_height)) >= 2.0 &&
+                       smooth_camera_prepare(&sf);
+    platform_video_begin_frame();
+    if (!g_smooth_pending) {
+        ppu_render_frame(send);
+        platform_video_end_frame();
+        return;
+    }
+    ppu_set_obj_mask(sf.party_oam, g_party_mask);
+    ppu_render_frame(send);
+    ppu_set_obj_mask(nullptr, nullptr);
+
+    /* Scenery pass: park the party's OAM entries below the screen, render, put them back. */
+    int16_t saved_y[128];
+    for (int i = 0; i < 128; i++) {
+        saved_y[i] = ppu.oam_full_y[i];
+        if (sf.party_oam[i])
+            ppu.oam_full_y[i] = int16_t(eb_viewport_height);
+    }
+    ppu_render_frame(fps_overlay_cb ? StampedScenery : SceneryScanline);
+    memcpy(ppu.oam_full_y, saved_y, sizeof(saved_y));
+
+    g_smooth_frac_x = sf.frac_x;
+    g_smooth_frac_y = sf.frac_y;
+    platform_video_end_frame();
+}
+
 void platform_display_apply_aspect(void) {
     int w, h;
     AspectToSize(platform_display_aspect(), &w, &h);
@@ -284,9 +342,14 @@ bool platform_video_init(void) {
         eb_viewport_height = h;
     }
     BuildLut();
-    if (platform_headless)
-        return true;                 /* a frame buffer is all the scripted tests need */
+    if (platform_headless) {
+        smooth_camera_enabled = false;     /* presentation only: nothing to smooth without a window */
+        return true;                       /* a frame buffer is all the scripted tests need */
+    }
 
+    const char *sc = getenv("EB_SMOOTH_CAMERA");
+    if (sc && sc[0] && strcmp(sc, "0") != 0)
+        smooth_camera_enabled = true;
     const char *v = getenv("EB_QT_VSYNC");
     g_vsync = !(v && strcmp(v, "0") == 0);
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
@@ -331,16 +394,31 @@ void platform_video_end_frame(void) {
     touch_draw(g_fb, eb_viewport_width * int(sizeof(pixel_t)));   /* the on-screen controls, while touch is in use */
     if (!g_window)
         return;                      /* headless: g_fb stays readable for the debug dump */
+    const int w = eb_viewport_width, h = eb_viewport_height;
     QImage &img = g_image[g_image_next ^= 1];
-    if (img.size() != QSize(eb_viewport_width, eb_viewport_height))
-        img = QImage(eb_viewport_width, eb_viewport_height, QImage::Format_RGBA8888);
-    for (int y = 0; y < eb_viewport_height; y++) {
-        uint32_t *dst = reinterpret_cast<uint32_t *>(img.scanLine(y));
-        const pixel_t *src = &g_fb[y * eb_viewport_width];
-        for (int x = 0; x < eb_viewport_width; x++)
-            dst[x] = g_lut[src[x]];
+    const QSize want(w, g_smooth_pending ? h * 2 : h);
+    if (img.size() != want)
+        img = QImage(want, QImage::Format_RGBA8888);
+    if (!g_smooth_pending) {
+        for (int y = 0; y < h; y++) {
+            uint32_t *dst = reinterpret_cast<uint32_t *>(img.scanLine(y));
+            const pixel_t *src = &g_fb[y * w];
+            for (int x = 0; x < w; x++)
+                dst[x] = g_lut[src[x]];
+        }
+        g_window->surface()->setFrame(img);
+    } else {   /* scenery above, the party's pixels (transparent elsewhere) below */
+        for (int y = 0; y < h; y++) {
+            uint32_t *scenery = reinterpret_cast<uint32_t *>(img.scanLine(y));
+            uint32_t *party = reinterpret_cast<uint32_t *>(img.scanLine(y + h));
+            for (int x = 0; x < w; x++) {
+                scenery[x] = g_lut[g_scenery[y * w + x]];
+                party[x] = g_party_mask[y * w + x] ? g_lut[g_fb[y * w + x]] : 0;
+            }
+        }
+        g_window->surface()->setSmoothFrame(img, QPointF(g_smooth_frac_x / 65536.0, g_smooth_frac_y / 65536.0));
+        g_smooth_pending = false;
     }
-    g_window->surface()->setFrame(img);
     qt_host_pump();
     static const char *grab = getenv("EB_QT_GRAB");   /* "FRAME:PATH": save what the window shows at that frame, then go on */
     if (grab && video_frames_rendered == atoi(grab)) {

@@ -4,6 +4,8 @@ layout(location = 0) in vec2 corner;
 layout(location = 0) out vec2 uv;
 layout(std140, binding = 0) uniform Frame {
     mat4 correction; // QRhi's clip space correction (Vulkan's Y points down)
+    vec4 shift;      // smooth camera: scenery shift in picture pixels (xy), picture size (zw)
+    vec4 mode;       // x: 0 = a plain frame, 1 = a smooth-camera frame (scenery above, party below)
 };
 void main() {
     uv = vec2(corner.x, 1.0 - corner.y);

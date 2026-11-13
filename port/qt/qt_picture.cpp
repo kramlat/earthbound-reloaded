@@ -9,6 +9,7 @@
 #include <rhi/qrhi.h>
 #include <rhi/qshader.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -89,6 +90,14 @@ public:
     QWidget *widget() override { return this; }
     void setFrame(const QImage &image) override {
         frame = image;
+        smooth = false;
+        frame_new = true;
+        update();
+    }
+    void setSmoothFrame(const QImage &image, QPointF f) override {
+        frame = image;
+        smooth = true;
+        frac = f;
         frame_new = true;
         update();
     }
@@ -105,12 +114,12 @@ protected:
             return;
         vertices.reset(rhi()->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, sizeof(kQuad)));
         vertices->create();
-        uniforms.reset(rhi()->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 64));
+        uniforms.reset(rhi()->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 96));
         uniforms->create();
         sampler.reset(rhi()->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
                                         QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
         sampler->create();
-        MakeTexture(frame.isNull() ? QSize(1, 1) : frame.size());
+        MakeTexture(TextureSize());
         bindings.reset(rhi()->newShaderResourceBindings());
         Bind();
         pipeline.reset(rhi()->newGraphicsPipeline());
@@ -131,23 +140,32 @@ protected:
         QRhiResourceUpdateBatch *batch = rhi()->nextResourceUpdateBatch();
         if (first_upload) {
             batch->uploadStaticBuffer(vertices.get(), kQuad);
-            const QMatrix4x4 correction = rhi()->clipSpaceCorrMatrix();   /* Vulkan's Y points down */
-            batch->updateDynamicBuffer(uniforms.get(), 0, 64, correction.constData());
             first_upload = false;
         }
+        const QSize target = renderTarget()->pixelSize();
+        if (!frame.isNull()) {   /* the frame's uniforms: the clip space correction and the smooth shift */
+            const QSize pic = smooth ? QSize(frame.width(), frame.height() / 2) : frame.size();
+            const QRectF fit = Picture_Fit(QSizeF(target), pic);
+            const QPointF shift = smooth ? Picture_SmoothShift(frac, fit.width() / pic.width()) : QPointF();
+            float u[24];
+            memcpy(u, rhi()->clipSpaceCorrMatrix().constData(), 64);
+            const float more[8] = { float(shift.x()), float(shift.y()), float(pic.width()), float(pic.height()),
+                                    smooth ? 1.0f : 0.0f, 0, 0, 0 };
+            memcpy(u + 16, more, sizeof(more));
+            batch->updateDynamicBuffer(uniforms.get(), 0, 96, u);
+        }
         if (!frame.isNull() && frame_new) {
-            if (texture->pixelSize() != frame.size()) {    /* the aspect ratio changed */
-                MakeTexture(frame.size());
+            if (texture->pixelSize() != TextureSize()) {    /* the aspect ratio changed */
+                MakeTexture(TextureSize());
                 Bind();
             }
             batch->uploadTexture(texture.get(),
                 QRhiTextureUploadDescription({ 0, 0, QRhiTextureSubresourceUploadDescription(frame) }));
             frame_new = false;
         }
-        const QSize target = renderTarget()->pixelSize();
         cb->beginPass(renderTarget(), Qt::black, { 1.0f, 0 }, batch);
         if (!frame.isNull()) {
-            const QRectF fit = Picture_Fit(QSizeF(target), frame.size());
+            const QRectF fit = Picture_Fit(QSizeF(target), smooth ? QSize(frame.width(), frame.height() / 2) : frame.size());
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(float(fit.x()), float(target.height() - fit.bottom()),
                                          float(fit.width()), float(fit.height())));
@@ -173,19 +191,25 @@ protected:
 private:
     static constexpr float kQuad[] = { 0, 0, 1, 0, 0, 1, 1, 1 };
 
+    /* twice the picture's height always, so that a smooth frame and a plain one share the texture */
+    QSize TextureSize() const {
+        if (frame.isNull()) return QSize(1, 2);
+        return QSize(frame.width(), smooth ? frame.height() : frame.height() * 2);
+    }
     void MakeTexture(const QSize &size) {
         texture.reset(rhi()->newTexture(QRhiTexture::RGBA8, size));
         texture->create();
     }
     void Bind() {
         bindings->setBindings({
-            QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::VertexStage, uniforms.get()),
+            QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage, uniforms.get()),
             QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage, texture.get(), sampler.get()) });
         bindings->create();
     }
 
     QImage frame;
-    bool frame_new = false, first_upload = true;
+    bool frame_new = false, first_upload = true, smooth = false;
+    QPointF frac;
     QRhi *made_for = nullptr;
     std::unique_ptr<QRhiGraphicsPipeline> pipeline;
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
@@ -203,7 +227,8 @@ public:
         setFocusPolicy(Qt::NoFocus);
     }
     QWidget *widget() override { return this; }
-    void setFrame(const QImage &image) override { frame = image; update(); }
+    void setFrame(const QImage &image) override { frame = image; smooth = false; update(); }
+    void setSmoothFrame(const QImage &image, QPointF f) override { frame = image; smooth = true; frac = f; update(); }
     QImage grabScreen() override { return grab().toImage(); }
 
 protected:
@@ -212,11 +237,25 @@ protected:
         p.fillRect(rect(), Qt::black);
         if (frame.isNull()) return;
         p.setRenderHint(QPainter::SmoothPixmapTransform, false);
-        p.drawImage(Picture_Fit(QSizeF(size()), frame.size()), frame);
+        if (!smooth) {
+            p.drawImage(Picture_Fit(QSizeF(size()), frame.size()), frame);
+            return;
+        }
+        const QSize pic(frame.width(), frame.height() / 2);
+        const QRectF fit = Picture_Fit(QSizeF(size()), pic);
+        const double scale = fit.width() / pic.width();
+        const QPointF shift = Picture_SmoothShift(frac, scale * devicePixelRatioF()) ;
+        const QRectF scenery(0, 0, pic.width(), pic.height()), party(0, pic.height(), pic.width(), pic.height());
+        p.setClipRect(fit);
+        p.drawImage(fit, frame, scenery);                      /* the underlay at the integer position */
+        p.drawImage(fit.translated(-shift.x() * scale, -shift.y() * scale), frame, scenery);
+        p.drawImage(fit, frame, party);
     }
 
 private:
     QImage frame;
+    bool smooth = false;
+    QPointF frac;
 };
 
 }   // namespace
@@ -248,6 +287,17 @@ const char *Picture_DrawingName(PictureDrawing drawing) {
     case PictureDrawing::OpenGL: return "OpenGL";
     default:                     return "the CPU";
     }
+}
+
+QPointF Picture_SmoothShift(QPointF frac, double scale) {
+    if (scale <= 0) return QPointF();
+    return QPointF(std::round(frac.x() * scale) / scale, std::round(frac.y() * scale) / scale);
+}
+
+double PictureSurface::scaleFor(QSize picture) {
+    QWidget *w = widget();
+    const QRectF fit = Picture_Fit(QSizeF(w->size()) * w->devicePixelRatioF(), picture);
+    return picture.isEmpty() ? 0 : fit.width() / picture.width();
 }
 
 QRectF Picture_Fit(const QSizeF &widget, const QSize &picture) {
