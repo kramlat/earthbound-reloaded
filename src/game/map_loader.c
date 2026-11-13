@@ -1208,6 +1208,53 @@ static int collect_gutter_overrides(ActiveGutterOverride *out,
     return n;
 }
 
+/* Seam healing (port-only; no asm counterpart; wide viewports only).
+ *
+ * LOAD_MAP_ROW stores block 0 of the loaded tileset for every tile that is off the map or in a sector
+ * of a different tileset combo (only one tileset fits in VRAM), so where an area ends the picture
+ * shows a flat, repeated strip of block 0 butting against whatever the area's edge looks like: very
+ * visible once the wide viewport reaches it (Happy Happy Village's eastern edge, the Sky Runner's
+ * flight over the sector borders). Like a healing brush, each such block takes its texture from the
+ * loaded area instead: the nearest loaded block in line with it (looking along the row and the
+ * column) is the boundary, and the block drawn is the one the same distance inside it, reflected
+ * back and forth if the loaded run is shorter than the filler is wide. The loaded blocks next to
+ * the border are repeated across it, so the area seems to carry on instead of ending in a cut. Blocks
+ * with no loaded block in reach keep block 0. EB_HEAL_SEAMS=0 turns it off. */
+#define HEAL_REACH 20      /* blocks to look for the boundary in */
+#define HEAL_MAX_RUN 16    /* blocks of loaded area to reflect over */
+static int heal_seams_enabled = -1;
+
+static bool block_in_loaded_area(int32_t bx, int32_t by) {
+    if (bx < 0 || by < 0 || bx >= 256 || by >= 320) return false;
+    return tile_in_loaded_area((int16_t)(bx * 4), (int16_t)(by * 4));
+}
+
+/* The block to draw at filler block (bx,by), or -1 to keep block 0 */
+static int32_t healed_block_id(int32_t bx, int32_t by) {
+    static const int8_t dirs[4][2] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
+    int best = -1, best_d = HEAL_REACH + 1;
+    for (int i = 0; i < 4; i++) {
+        for (int d = 1; d <= HEAL_REACH && d < best_d; d++) {
+            if (block_in_loaded_area(bx + dirs[i][0] * d, by + dirs[i][1] * d)) {
+                best = i; best_d = d;
+                break;
+            }
+        }
+    }
+    if (best < 0) return -1;
+    int32_t vx = bx + dirs[best][0] * best_d, vy = by + dirs[best][1] * best_d;   /* first loaded block */
+    int run = 1;                                      /* loaded blocks in a row from there, deeper in */
+    while (run < HEAL_MAX_RUN && block_in_loaded_area(vx + dirs[best][0] * run, vy + dirs[best][1] * run))
+        run++;
+    int k = best_d - 1;                               /* the filler block's distance from the boundary */
+    int i = 0;                                        /* ping-pong over the run: 0..run-1, run-1..0, ... */
+    if (run > 1) {
+        int m = k % (2 * (run - 1));
+        i = m < run ? m : 2 * (run - 1) - m;
+    }
+    return get_block_id((uint16_t)(vx + dirs[best][0] * i), (uint16_t)(vy + dirs[best][1] * i));
+}
+
 /* Colour index (0-15) an 8x8 4bpp tile is solidly filled with, or -1 when
  * its pixels differ. Each bitplane byte of a solid tile is $00 or $FF and the
  * same on all 8 rows (planes 0/1 at bytes 0-15, planes 2/3 at 16-31). */
@@ -1314,6 +1361,22 @@ static void fill_tilemaps(int16_t view_x_tile, int16_t view_y_tile,
     bool void_stage = game_state.camera_mode == 0 &&
                       band_is_void(band_x0, band_x1, band_y0, band_y1);
 
+    if (heal_seams_enabled < 0) {
+        const char *e = getenv("EB_HEAL_SEAMS");
+        heal_seams_enabled = !(e && e[0] == '0');
+    }
+    const bool heal = heal_seams_enabled && !void_stage &&
+                      (eb_viewport_width > SNES_WIDTH || eb_viewport_height > SNES_HEIGHT);
+    /* healed block for each block the tilemap window touches (17 x 9 of them) */
+    const int32_t heal_bx0 = view_x_tile >> 2, heal_by0 = view_y_tile >> 2;
+    int32_t healed[9][17];
+    if (heal) {
+        for (int j = 0; j < 9; j++)
+            for (int i = 0; i < 17; i++)
+                healed[j][i] = block_in_loaded_area(heal_bx0 + i, heal_by0 + j)
+                                   ? -1 : healed_block_id(heal_bx0 + i, heal_by0 + j);
+    }
+
     ActiveGutterOverride gutter[MAX_ACTIVE_GUTTER_OVERRIDES];
     int gutter_count = collect_gutter_overrides(gutter, view_x_tile, view_x_tile + 63,
                                                 view_y_tile, view_y_tile + 31,
@@ -1345,6 +1408,11 @@ static void fill_tilemaps(int16_t view_x_tile, int16_t view_y_tile,
                     block_id = read_u16_le(a->blocks + i * 2);
                     break;
                 }
+            }
+
+            if (heal && !tile_in_loaded_area(world_tx, world_ty) && block_id == 0) {
+                int32_t h = healed[(world_ty >> 2) - heal_by0][(world_tx >> 2) - heal_bx0];
+                if (h >= 0) block_id = (uint16_t)h;
             }
 
             if (void_stage &&
