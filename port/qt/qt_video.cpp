@@ -19,6 +19,7 @@
 
 #include <SDL.h>
 #include <cstdio>
+#include <deque>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -47,6 +48,14 @@ void platform_video_set_fullscreen(bool fullscreen);
 }
 
 namespace {
+
+/* Qt's events as SDL_Event structs for the shared input code. Not SDL_PushEvent: SDL 2 here is the
+ * sdl2-compat layer over SDL 3, whose queue crashes on key events without an SDL video system. */
+std::deque<SDL_Event> g_events;
+void Queue(const SDL_Event &ev) {
+    if (g_events.size() < 256)
+        g_events.push_back(ev);
+}
 
 int g_argc = 1;
 char g_name[] = "earthbound";
@@ -150,13 +159,13 @@ protected:
         SDL_zero(ev);
         ev.type = SDL_WINDOWEVENT;
         ev.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
-        SDL_PushEvent(&ev);
+        Queue(ev);
     }
     void closeEvent(QCloseEvent *e) override {
         SDL_Event ev;
         SDL_zero(ev);
         ev.type = SDL_QUIT;
-        SDL_PushEvent(&ev);
+        Queue(ev);
         e->ignore();            /* the game loop ends; main() shuts everything down in order */
     }
     void keyPressEvent(QKeyEvent *e) override { Key(e, true); }
@@ -166,7 +175,7 @@ protected:
         SDL_zero(ev);
         ev.type = SDL_MOUSEMOTION;
         ToPicture(e->position(), &ev.motion.x, &ev.motion.y);
-        SDL_PushEvent(&ev);
+        Queue(ev);
     }
     void mousePressEvent(QMouseEvent *e) override { Button(e, SDL_MOUSEBUTTONDOWN); }
     void mouseReleaseEvent(QMouseEvent *e) override { Button(e, SDL_MOUSEBUTTONUP); }
@@ -191,8 +200,7 @@ private:
             ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
             ev.key.repeat = e->isAutoRepeat() ? 1 : 0;
             ev.key.keysym.scancode = sc;
-            ev.key.keysym.sym = SDL_GetKeyFromScancode(sc);
-            SDL_PushEvent(&ev);
+            Queue(ev);
         }
         if (down) {   /* typed characters, for name entry */
             const QByteArray text = e->text().toUtf8();
@@ -201,7 +209,7 @@ private:
                 SDL_zero(ev);
                 ev.type = SDL_TEXTINPUT;
                 memcpy(ev.text.text, text.constData(), size_t(text.size()));
-                SDL_PushEvent(&ev);
+                Queue(ev);
             }
         }
         e->accept();
@@ -217,7 +225,7 @@ private:
         if (!ev.button.button) return;
         ev.button.state = type == SDL_MOUSEBUTTONDOWN ? SDL_PRESSED : SDL_RELEASED;
         ToPicture(e->position(), &ev.button.x, &ev.button.y);
-        SDL_PushEvent(&ev);
+        Queue(ev);
     }
     void Touch(QTouchEvent *e) {
         for (const QEventPoint &p : e->points()) {
@@ -232,7 +240,7 @@ private:
             ev.tfinger.fingerId = p.id();
             ev.tfinger.x = float(p.position().x() / qMax(1, width()));
             ev.tfinger.y = float(p.position().y() / qMax(1, height()));
-            SDL_PushEvent(&ev);
+            Queue(ev);
         }
     }
 
@@ -262,6 +270,14 @@ extern "C" {
 void qt_host_set_args(int argc, char **argv) {
     g_argc = argc;
     g_argv = argv;
+}
+
+bool qt_host_poll_event(SDL_Event *out) {
+    if (g_events.empty())
+        return false;
+    *out = g_events.front();
+    g_events.pop_front();
+    return true;
 }
 
 void qt_host_pump(void) {

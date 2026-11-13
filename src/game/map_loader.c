@@ -1365,8 +1365,11 @@ static void fill_tilemaps(int16_t view_x_tile, int16_t view_y_tile,
         const char *e = getenv("EB_HEAL_SEAMS");
         heal_seams_enabled = !(e && e[0] == '0');
     }
+    /* Only where block 0 is real scenery (outdoors): indoors it is the flat black void round the room,
+     * which belongs there. */
     const bool heal = heal_seams_enabled && !void_stage &&
-                      (eb_viewport_width > SNES_WIDTH || eb_viewport_height > SNES_HEIGHT);
+                      (eb_viewport_width > SNES_WIDTH || eb_viewport_height > SNES_HEIGHT) &&
+                      block_flat_color(0) < 0;
     /* healed block for each block the tilemap window touches (17 x 9 of them) */
     const int32_t heal_bx0 = view_x_tile >> 2, heal_by0 = view_y_tile >> 2;
     int32_t healed[9][17];

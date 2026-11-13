@@ -273,7 +273,11 @@ void platform_input_poll(void) {
 #ifdef EB_QT_HOST
     qt_host_pump();     /* Qt's window events become SDL events below */
 #endif
-    while (SDL_PollEvent(&event)) {
+    while (
+#ifdef EB_QT_HOST
+           qt_host_poll_event(&event) ||
+#endif
+           SDL_PollEvent(&event)) {
         if (touch_handle_event(&event))
             continue;
         switch (event.type) {
