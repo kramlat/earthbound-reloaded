@@ -1492,6 +1492,9 @@ typedef struct {
 #define GUTTER_HAS_PADS 0
 #endif
 
+/* How far past the band's side edges a window light effect still lights the picture, in pixels. */
+#define LIGHT_GUTTER_REACH 32
+
 /* Pixels inside the band over which a run end's slope is measured. */
 #define GUTTER_SLOPE_PROBE 8
 
@@ -1547,9 +1550,15 @@ static void gutter_edge_fill(GutterRow *gr, uint8_t bit, int edge, int pos, int 
 static void gutter_edge_row(GutterRow *gr, int win, int edge, int pos)
 {
     const int len = edge < 2 ? SNES_HEIGHT : SNES_WIDTH;
-    const int depth_max = edge == 0 ? EB_VIEWPORT_PAD_LEFT
-                        : edge == 1 ? GUTTER_PAD_R
-                        : edge == 2 ? EB_VIEWPORT_PAD_TOP : GUTTER_PAD_B;
+    int depth_max = edge == 0 ? EB_VIEWPORT_PAD_LEFT
+                  : edge == 1 ? GUTTER_PAD_R
+                  : edge == 2 ? EB_VIEWPORT_PAD_TOP : GUTTER_PAD_B;
+    /* A light effect reaches only so far sideways. The stage lights of the Runaway Five shows (and
+     * the like) are a dark/white colour-subtract held off by HDMA windows: the lit shapes. Past
+     * LIGHT_GUTTER_REACH the gutter is outside the window, i.e. dark, instead of being lit with the
+     * band's edge shape all the way to the picture's side. */
+    if (edge < 2 && ppu.cgwsel == 0x20 && ppu.cgadsub == 0xB3 && depth_max > LIGHT_GUTTER_REACH)
+        depth_max = LIGHT_GUTTER_REACH;
     /* Range of t the gutter covers: left/right gutters include the corner
      * rows above and below the band. */
     const int t_lo = edge < 2 ? -EB_VIEWPORT_PAD_TOP : 0;
@@ -2278,6 +2287,13 @@ void precompute_window_masks(
         int wx_offset = wide_mode ? -EB_VIEWPORT_PAD_LEFT : 0;
         int inv_lo = wide_mode ? wx_offset : 0;
         int inv_hi = wide_mode ? (render_width - 1 + wx_offset) : 255;
+        /* A window light effect (the stage lights: colour-subtract held off by the window) is
+         * lit only a little way past the band's sides, not out to the picture's edge. */
+        int light_lo = inv_lo, light_hi = inv_hi;
+        if (wide_mode && ppu.cgwsel == 0x20 && ppu.cgadsub == 0xB3) {
+            if (light_lo < -LIGHT_GUTTER_REACH) light_lo = -LIGHT_GUTTER_REACH;
+            if (light_hi > 255 + LIGHT_GUTTER_REACH) light_hi = 255 + LIGHT_GUTTER_REACH;
+        }
 
         if (!cm_w1_en && !cm_w2_en) {
             memset(cm_prevented_line, (prevent_mode == 1) ? 1 : 0, render_width);
@@ -2299,8 +2315,8 @@ void precompute_window_masks(
                     /* Extend the inside-span into the gutters when the window
                      * touches a native edge, so wide-mode padding columns get
                      * the same color-math treatment (mirrors the inverted branch). */
-                    int _l = (wide_mode && w1_left  <= 0)   ? inv_lo : (int)w1_left;
-                    int _r = (wide_mode && w1_right >= 255) ? inv_hi : (int)w1_right;
+                    int _l = (wide_mode && w1_left  <= 0)   ? light_lo : (int)w1_left;
+                    int _r = (wide_mode && w1_right >= 255) ? light_hi : (int)w1_right;
                     CM_SPAN(_l, _r, val_inside);
                 } else {
                     if (w1_left - 1 >= inv_lo) CM_SPAN(inv_lo, w1_left - 1, val_inside);
@@ -2310,8 +2326,8 @@ void precompute_window_masks(
                 memset(cm_prevented_line, val_outside, render_width);
                 if (!cm_w2_inv) {
                     /* Same gutter extension for the window-2 single-window case. */
-                    int _l = (wide_mode && w2_left  <= 0)   ? inv_lo : (int)w2_left;
-                    int _r = (wide_mode && w2_right >= 255) ? inv_hi : (int)w2_right;
+                    int _l = (wide_mode && w2_left  <= 0)   ? light_lo : (int)w2_left;
+                    int _r = (wide_mode && w2_right >= 255) ? light_hi : (int)w2_right;
                     CM_SPAN(_l, _r, val_inside);
                 } else {
                     if (w2_left - 1 >= inv_lo) CM_SPAN(inv_lo, w2_left - 1, val_inside);
